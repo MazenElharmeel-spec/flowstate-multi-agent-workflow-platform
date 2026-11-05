@@ -10,14 +10,18 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.app.api.approvals import router as approvals_router
 from backend.app.api.auth import router as auth_router
 from backend.app.api.health import router as health_router
+from backend.app.api.runs import router as runs_router
 from backend.app.api.tools import router as tools_router
+from backend.app.api.workflows import router as workflows_router
 from backend.app.core.config import get_settings
 from backend.app.core.errors import WorkflowEngineError
 from backend.app.core.logging import setup_logging
-from backend.app.db.session import init_db
-from backend.app.tools.setup import register_native_tools
+from backend.app.db.seed import seed_database
+from backend.app.tools.mcp_client import mcp_manager
+from backend.app.tools.setup import register_native_tools, setup_mcp_clients
 
 settings = get_settings()
 
@@ -27,8 +31,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     setup_logging(level=settings.LOG_LEVEL)
     if "sqlite" in settings.DATABASE_URL:
-        await init_db()
+        await seed_database()
     register_native_tools()
+    setup_mcp_clients()
+    await mcp_manager.initialize_all()
     yield
     # Shutdown
 
@@ -86,3 +92,6 @@ async def workflow_engine_error_handler(request: Request, exc: WorkflowEngineErr
 app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(tools_router, prefix="/api/v1")
+app.include_router(workflows_router, prefix="/api/v1")
+app.include_router(runs_router, prefix="/api/v1")
+app.include_router(approvals_router, prefix="/api/v1")

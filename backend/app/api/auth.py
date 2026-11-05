@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.api.deps import get_current_user, get_db
+from backend.app.api.deps import get_current_user, get_db, require_role
 from backend.app.api.schemas import LoginRequest, TokenResponse, UserCreate, UserOut
 from backend.app.core.security import (
     Role,
@@ -54,6 +54,7 @@ async def get_me(
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(
     user_in: UserCreate,
+    _current_user: Annotated[User, Depends(require_role(Role.ADMIN))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     result = await db.execute(select(User).where(User.email == user_in.email))

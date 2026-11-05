@@ -142,10 +142,22 @@ async def test_email_mcp_execution() -> None:
             "to_email": "alice@example.com",
             "subject": "Resolution regarding Order #901",
             "body": "Your refund of $120.00 has been processed.",
+            "idempotency_key": "email-test-889",
         },
     )
     assert res["status"] == "sent"
     assert res["recipient"] == "alice@example.com"
+    replay = await client.call_tool(
+        "send_email",
+        {
+            "to_email": "alice@example.com",
+            "subject": "Resolution regarding Order #901",
+            "body": "Your refund of $120.00 has been processed.",
+            "idempotency_key": "email-test-889",
+        },
+    )
+    assert replay["message_id"] == res["message_id"]
+    assert replay["idempotent_replay"] is True
 
 
 @pytest.mark.asyncio

@@ -90,7 +90,7 @@ def handle_get_customer_orders(args: dict[str, Any]) -> list[dict[str, Any]]:
     cid = args.get("customer_id")
     if cid not in CUSTOMERS:
         raise ValueError(f"Customer '{cid}' not found in CRM")
-    return CUSTOMERS[cid]["orders"]
+    return list(CUSTOMERS[cid]["orders"])
 
 
 def handle_update_customer_status(args: dict[str, Any]) -> dict[str, Any]:

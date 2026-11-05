@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from backend.app.core.security import Role, has_permission
+from backend.app.db.seed import seed_database
 
 
 @pytest.mark.asyncio
@@ -26,35 +27,44 @@ async def test_readyz(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_user_registration_and_login(client: AsyncClient) -> None:
-    # Register an admin user
+    await seed_database()
+    login_admin = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@example.com", "password": "AdminSecret123!"},
+    )
+    admin_token = login_admin.json()["access_token"]
+
+    # Registration is restricted to an administrator.
     reg_res = await client.post(
         "/api/v1/auth/register",
-        json={"email": "admin@example.com", "password": "SecretPassword123!", "role": "admin"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"email": "new-admin@example.com", "password": "SecretPassword123!", "role": "admin"},
     )
     assert reg_res.status_code == 201
     user_data = reg_res.json()
-    assert user_data["email"] == "admin@example.com"
+    assert user_data["email"] == "new-admin@example.com"
     assert user_data["role"] == "admin"
     assert "hashed_password" not in user_data
 
     # Attempt duplicate registration
     dup_res = await client.post(
         "/api/v1/auth/register",
-        json={"email": "admin@example.com", "password": "AnotherPassword", "role": "viewer"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"email": "new-admin@example.com", "password": "AnotherPassword", "role": "viewer"},
     )
     assert dup_res.status_code == 400
 
     # Login with wrong credentials
     bad_login = await client.post(
         "/api/v1/auth/login",
-        json={"email": "admin@example.com", "password": "WrongPassword"},
+        json={"email": "new-admin@example.com", "password": "WrongPassword"},
     )
     assert bad_login.status_code == 401
 
     # Login with valid credentials
     login_res = await client.post(
         "/api/v1/auth/login",
-        json={"email": "admin@example.com", "password": "SecretPassword123!"},
+        json={"email": "new-admin@example.com", "password": "SecretPassword123!"},
     )
     assert login_res.status_code == 200
     token_data = login_res.json()
@@ -69,7 +79,7 @@ async def test_user_registration_and_login(client: AsyncClient) -> None:
     )
     assert me_res.status_code == 200
     me_data = me_res.json()
-    assert me_data["email"] == "admin@example.com"
+    assert me_data["email"] == "new-admin@example.com"
     assert me_data["role"] == "admin"
 
 

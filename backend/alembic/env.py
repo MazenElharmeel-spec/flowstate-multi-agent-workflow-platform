@@ -16,7 +16,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 from backend.app.core.config import get_settings
-from backend.app.db.models import Base
+from backend.app.db.session import Base
+from backend.app.db import models  # noqa: F401
 
 target_metadata = Base.metadata
 settings = get_settings()

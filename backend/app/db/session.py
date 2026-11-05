@@ -5,6 +5,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from backend.app.core.config import get_settings
 
@@ -17,12 +18,14 @@ if "sqlite" in settings.DATABASE_URL:
 
 # Build async engine with connection pooling options where appropriate
 connect_args = {"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+pool_kwargs = {"poolclass": NullPool} if "sqlite" in settings.DATABASE_URL else {}
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
     connect_args=connect_args,
+    **pool_kwargs,
 )
 
 async_session_factory = async_sessionmaker(
