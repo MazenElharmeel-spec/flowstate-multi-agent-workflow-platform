@@ -1,0 +1,176 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: awp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: agent_workflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_workflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: awp-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  crm-mcp:
+    build:
+      context: .
+      dockerfile: backend/mcp_servers/crm/Dockerfile
+    container_name: awp-crm-mcp
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: 8001
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ticketing-mcp:
+    build:
+      context: .
+      dockerfile: backend/mcp_servers/ticketing/Dockerfile
+    container_name: awp-ticketing-mcp
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      PORT: 8002
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  email-mcp:
+    build:
+      context: .
+      dockerfile: backend/mcp_servers/email/Dockerfile
+    container_name: awp-email-mcp
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      PORT: 8003
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  payments-mcp:
+    build:
+      context: .
+      dockerfile: backend/mcp_servers/payments/Dockerfile
+    container_name: awp-payments-mcp
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      PORT: 8004
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: awp-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      crm-mcp:
+        condition: service_healthy
+      ticketing-mcp:
+        condition: service_healthy
+      email-mcp:
+        condition: service_healthy
+      payments-mcp:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/agent_workflow
+      DATABASE_URL_SYNC: postgresql://postgres:postgrespassword@postgres:5432/agent_workflow
+      REDIS_URL: redis://redis:6379/0
+      CRM_MCP_URL: http://crm-mcp:8001/mcp
+      TICKETING_MCP_URL: http://ticketing-mcp:8002/mcp
+      EMAIL_MCP_URL: http://email-mcp:8003/mcp
+      PAYMENTS_MCP_URL: http://payments-mcp:8004/mcp
+      ENVIRONMENT: production
+      LOG_LEVEL: INFO
+      SECRET_KEY: super-secret-production-key-change-me-at-least-32-chars
+    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: awp-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/agent_workflow
+      DATABASE_URL_SYNC: postgresql://postgres:postgrespassword@postgres:5432/agent_workflow
+      REDIS_URL: redis://redis:6379/0
+      CRM_MCP_URL: http://crm-mcp:8001/mcp
+      TICKETING_MCP_URL: http://ticketing-mcp:8002/mcp
+      EMAIL_MCP_URL: http://email-mcp:8003/mcp
+      PAYMENTS_MCP_URL: http://payments-mcp:8004/mcp
+      ENVIRONMENT: production
+      SECRET_KEY: super-secret-production-key-change-me-at-least-32-chars
+    command: ["python", "-m", "backend.app.orchestration.worker"]
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: awp-web
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
