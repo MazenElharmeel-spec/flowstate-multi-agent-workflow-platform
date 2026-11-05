@@ -52,10 +52,82 @@ function Shell({ user, theme, onToggleTheme, onLogout }: { user: User; theme: 'd
 
 function Dashboard({ runs, approvals, workflows, onRefresh }: { runs: Run[]; approvals: Approval[]; workflows: Workflow[]; onRefresh: () => void }) {
   const successful = runs.filter((r) => r.status === 'completed').length;
-  const success = runs.length ? Math.round(100 * successful / runs.length) : 0;
+  const failedCount = runs.filter((r) => r.status === 'failed').length;
   const failed = runs.filter((r) => r.status === 'failed');
   const active = runs.filter((r) => ['queued', 'running', 'waiting_approval'].includes(r.status));
-  return <><div className="page-heading"><div><div className="eyebrow">FRIDAY, NOVEMBER 6, 2026</div><h1>Operations overview</h1><p>Monitor your AI workflows, approvals, and system health.</p></div><button className="button secondary" onClick={onRefresh}><RefreshCw size={15}/>Refresh</button></div><div className="metric-grid"><Metric title="Total workflow runs" value={runs.length.toString()} change="Across all workflows" icon={<WorkflowIcon size={17}/>} tone="violet"/><Metric title="Success rate" value={`${success}%`} change={`${successful} completed successfully`} icon={<Activity size={17}/>} tone="green"/><Metric title="Pending approvals" value={approvals.length.toString()} change={approvals.length ? 'Requires your attention' : 'You’re all caught up'} icon={<ShieldCheck size={17}/>} tone="amber"/><Metric title="Estimated AI cost" value={money(runs.reduce((s, r) => s + r.estimated_cost_usd, 0))} change="Lifetime across runs" icon={<ArrowDownLeft size={17}/>} tone="blue"/></div><div className="dashboard-grid"><section className="panel run-panel"><div className="panel-heading"><div><h2>Recent workflow runs</h2><p>Execution activity from your workspace</p></div><Link to="/runs" className="text-link">View all <ArrowUpRight size={14}/></Link></div><RunTable runs={runs.slice(0, 6)}/></section><section className="panel approvals-panel"><div className="panel-heading"><div><h2>Needs your approval</h2><p>Review sensitive actions before execution</p></div><span className="count-chip">{approvals.length}</span></div>{approvals.length ? approvals.slice(0, 3).map((a) => <ApprovalMini key={a.id} approval={a}/>) : <div className="empty-small"><div className="empty-icon"><Check size={18}/></div><b>All clear</b><span>No actions are waiting for approval.</span></div>}<Link to="/approvals" className="button secondary full">Open approvals inbox <ChevronRight size={15}/></Link></section></div><section className="panel workflow-strip"><div className="panel-heading"><div><h2>Workflow catalog</h2><p>Launch a workflow from a versioned definition</p></div><Link to="/workflows" className="text-link">Browse catalog <ArrowUpRight size={14}/></Link></div><div className="workflow-cards">{workflows.slice(0, 3).map((w) => <WorkflowCard key={w.id} workflow={w} compact/>)}{!workflows.length && <Skeleton/>}</div></section><div className="footer-note"><span className="pulse-dot"/> {active.length} active runs <span className="footer-sep">·</span> {failed.length} failed <span className="footer-sep">·</span> Refreshes every 12 seconds</div></>;
+  const sortedRuns = [...runs].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - index));
+    return date;
+  });
+  const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  const dayRuns = days.map((day) => sortedRuns.filter((run) => {
+    const date = new Date(run.created_at);
+    return dayKey(date) === dayKey(day);
+  }));
+  const dailyRuns = dayRuns.map((items) => items.length);
+  const dailyCompletion = dayRuns.map((items) => items.length ? Math.round(items.filter((run) => run.status === 'completed').length / items.length * 100) : 0);
+  const dailyErrors = dayRuns.map((items) => items.length ? Math.round(items.filter((run) => run.status === 'failed').length / items.length * 100) : 0);
+  const dailySteps = dayRuns.map((items) => items.reduce((sum, run) => sum + run.step_count, 0));
+  const successRate = runs.length ? Math.round(successful / runs.length * 100) : 0;
+  const errorRate = runs.length ? Math.round(failedCount / runs.length * 100) : 0;
+  const totalSteps = runs.reduce((sum, run) => sum + run.step_count, 0);
+  const currentNode = active.find((run) => run.current_node)?.current_node;
+  const formattedDate = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(today);
+  return <>
+    <div className="page-heading"><div><div className="eyebrow">{formattedDate.toUpperCase()}</div><h1>AI task automation metrics</h1><p>Live orchestration activity and workflow performance.</p></div><button className="button secondary" onClick={onRefresh}><RefreshCw size={15}/>Refresh</button></div>
+    <div className="orchestration-layout">
+      <section className="panel orchestration-panel">
+        <div className="panel-heading"><div><h2>Agent orchestration</h2><p>Customer escalation · Live workflow topology</p></div><span className="live-pill"><span className="pulse-dot"/>{active.length} active</span></div>
+        <OrchestrationMap currentNode={currentNode}/>
+        <div className="orchestration-legend"><span><i className="legend-dot completed"/>Completed</span><span><i className="legend-dot current"/>Current step</span><span><i className="legend-dot waiting"/>Approval gate</span><span className="legend-copy">Based on the customer escalation graph</span></div>
+      </section>
+      <aside className="analytics-rail">
+        <AnalyticsCard title="Task throughput" value={String(runs.length)} subtitle="workflow runs · all time" values={dailyRuns} tone="violet"/>
+        <AnalyticsCard title="Agent efficiency" value={runs.length ? `${successRate}%` : '—'} subtitle="completed runs" values={dailyCompletion} tone="cyan"/>
+        <AnalyticsCard title="Error rate" value={runs.length ? `${errorRate}%` : '—'} subtitle={`${failedCount} failed runs`} values={dailyErrors} tone="red"/>
+        <AnalyticsCard title="Collaborative output" value={String(totalSteps)} subtitle="agent steps completed" values={dailySteps} tone="mixed"/>
+      </aside>
+    </div>
+    <div className="dashboard-grid orchestration-lower-grid">
+      <section className="panel run-panel"><div className="panel-heading"><div><h2>Recent workflow runs</h2><p>Execution activity from your workspace</p></div><Link to="/runs" className="text-link">View all <ArrowUpRight size={14}/></Link></div><RunTable runs={runs.slice(0, 6)}/></section>
+      <section className="panel approvals-panel"><div className="panel-heading"><div><h2>Needs your approval</h2><p>Review sensitive actions before execution</p></div><span className="count-chip">{approvals.length}</span></div>{approvals.length ? approvals.slice(0, 3).map((a) => <ApprovalMini key={a.id} approval={a}/>) : <div className="empty-small"><div className="empty-icon"><Check size={18}/></div><b>All clear</b><span>No actions are waiting for approval.</span></div>}<Link to="/approvals" className="button secondary full">Open approvals inbox <ChevronRight size={15}/></Link></section>
+    </div>
+    <section className="panel workflow-strip"><div className="panel-heading"><div><h2>Workflow catalog</h2><p>Launch a workflow from a versioned definition</p></div><Link to="/workflows" className="text-link">Browse catalog <ArrowUpRight size={14}/></Link></div><div className="workflow-cards">{workflows.slice(0, 3).map((w) => <WorkflowCard key={w.id} workflow={w} compact/>)}{!workflows.length && <Skeleton/>}</div></section>
+    <div className="footer-note"><span className="pulse-dot"/> {active.length} active runs <span className="footer-sep">·</span> {failed.length} failed <span className="footer-sep">·</span> Refreshes every 12 seconds</div>
+  </>;
+}
+function OrchestrationMap({ currentNode }: { currentNode?: string | null }) {
+  const nodeSpecs: Array<[string, string, number, number, string]> = [
+    ['triage', 'Triage agent', 10, 145, 'Intake'], ['research', 'Research agent', 225, 145, 'Context'],
+    ['planner', 'Resolution planner', 440, 145, 'Planning'], ['policy_gate', 'Policy gate', 655, 145, 'Approval'],
+    ['action', 'Action agent', 870, 60, 'Execution'], ['reviewer', 'Reviewer agent', 1080, 60, 'Review'],
+    ['escalate_fallback', 'Escalation path', 870, 245, 'Fallback'], ['report', 'Report agent', 1080, 245, 'Summary'],
+  ];
+  const nodes: Node[] = nodeSpecs.map(([id, label, x, y, role]) => ({
+    id,
+    position: { x, y },
+    data: { label: `${label} · ${role}` },
+    className: `flow-node orchestration-node ${id === currentNode ? 'current' : ''} ${id === 'policy_gate' ? 'approval-gate' : ''}`,
+  }));
+  const links: Array<[string, string]> = [['triage','research'],['research','planner'],['planner','policy_gate'],['policy_gate','action'],['action','reviewer'],['reviewer','report'],['policy_gate','planner'],['reviewer','planner'],['reviewer','escalate_fallback'],['escalate_fallback','report']];
+  const edges: Edge[] = links.map(([source, target], index) => ({
+    id: `${source}-${target}-${index}`, source, target,
+    animated: source === currentNode,
+    style: { stroke: index > 5 ? '#42d8f4' : '#a68bff', strokeWidth: 2 },
+  }));
+  return <div className="orchestration-canvas"><ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.12 }} nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} zoomOnDoubleClick={false} minZoom={0.3} maxZoom={1.2}><Background gap={24} size={1}/></ReactFlow></div>;
+}
+function AnalyticsCard({ title, value, subtitle, values, tone }: { title: string; value: string; subtitle: string; values: number[]; tone: string }) {
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const points = values.map((item, index) => `${index / Math.max(values.length - 1, 1) * 240},${61 - (item - min) / Math.max(max - min, 1) * 43}`);
+  const line = `M${points.join(' L')}`;
+  const area = `${line} L240,66 L0,66 Z`;
+  return <section className={`panel analytics-card ${tone}`}><div className="analytics-card-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><span className="analytics-menu">···</span></div><strong>{value}</strong><svg className="analytics-chart" viewBox="0 0 240 70" preserveAspectRatio="none" aria-label={`${title} for the last seven days`} role="img"><path className="chart-gridline" d="M0 18H240 M0 42H240 M0 66H240"/><path className="chart-area" d={area}/><path className="chart-line" d={line}/></svg><div className="chart-axis"><span>7 days ago</span><span>Today</span></div></section>;
 }
 function Metric({ title, value, change, icon, tone }: { title: string; value: string; change: string; icon: React.ReactNode; tone: string }) { return <div className="metric-card"><div className={`metric-icon ${tone}`}>{icon}</div><span>{title}</span><strong>{value}</strong><small>{change}</small></div>; }
 function RunsPage({ runs }: { runs: Run[] }) { const [query, setQuery] = useState(''); const filtered = runs.filter((r) => `${r.id} ${r.status} ${r.current_node ?? ''}`.toLowerCase().includes(query.toLowerCase())); return <><div className="page-heading"><div><div className="eyebrow">EXECUTION HISTORY</div><h1>Workflow runs</h1><p>Inspect live and completed workflow executions.</p></div><Link className="button primary" to="/workflows"><Plus size={16}/>New run</Link></div><section className="panel table-panel"><div className="table-toolbar"><input className="search-input" placeholder="Search by run ID or status…" value={query} onChange={(e) => setQuery(e.target.value)}/><span>{filtered.length} runs</span></div><RunTable runs={filtered} emptyMessage="No runs match your search."/></section></>; }
