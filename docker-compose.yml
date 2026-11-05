@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: postgrespassword
       POSTGRES_DB: agent_workflow
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +24,7 @@ services:
     container_name: awp-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -39,8 +39,6 @@ services:
       dockerfile: backend/mcp_servers/crm/Dockerfile
     container_name: awp-crm-mcp
     restart: unless-stopped
-    ports:
-      - "8001:8001"
     environment:
       PORT: 8001
     healthcheck:
@@ -55,8 +53,6 @@ services:
       dockerfile: backend/mcp_servers/ticketing/Dockerfile
     container_name: awp-ticketing-mcp
     restart: unless-stopped
-    ports:
-      - "8002:8002"
     environment:
       PORT: 8002
     healthcheck:
@@ -71,10 +67,11 @@ services:
       dockerfile: backend/mcp_servers/email/Dockerfile
     container_name: awp-email-mcp
     restart: unless-stopped
-    ports:
-      - "8003:8003"
     environment:
       PORT: 8003
+      EMAIL_DB_PATH: /data/email.sqlite
+    volumes:
+      - email_data:/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
       interval: 5s
@@ -87,10 +84,11 @@ services:
       dockerfile: backend/mcp_servers/payments/Dockerfile
     container_name: awp-payments-mcp
     restart: unless-stopped
-    ports:
-      - "8004:8004"
     environment:
       PORT: 8004
+      PAYMENTS_DB_PATH: /data/payments.sqlite
+    volumes:
+      - payments_data:/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')"]
       interval: 5s
@@ -117,7 +115,7 @@ services:
       payments-mcp:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "8100:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/agent_workflow
       DATABASE_URL_SYNC: postgresql://postgres:postgrespassword@postgres:5432/agent_workflow
@@ -129,7 +127,7 @@ services:
       ENVIRONMENT: production
       LOG_LEVEL: INFO
       SECRET_KEY: super-secret-production-key-change-me-at-least-32-chars
-    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["sh", "-c", "alembic upgrade head && python -m backend.app.db.seed && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 10s
@@ -146,6 +144,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      api:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/agent_workflow
@@ -166,7 +166,7 @@ services:
     container_name: awp-web
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3010:80"
     depends_on:
       api:
         condition: service_healthy
@@ -174,3 +174,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  email_data:
+  payments_data:

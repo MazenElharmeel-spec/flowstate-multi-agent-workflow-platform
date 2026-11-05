@@ -17,4 +17,7 @@ frontend/dist/
 frontend/.vite/
 *.db
 *.sqlite3
+data/*.sqlite
 .DS_Store
+
+frontend/*.tsbuildinfo
