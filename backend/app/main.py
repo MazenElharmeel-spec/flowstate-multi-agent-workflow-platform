@@ -12,10 +12,12 @@ from fastapi.responses import JSONResponse
 
 from backend.app.api.auth import router as auth_router
 from backend.app.api.health import router as health_router
+from backend.app.api.tools import router as tools_router
 from backend.app.core.config import get_settings
 from backend.app.core.errors import WorkflowEngineError
 from backend.app.core.logging import setup_logging
 from backend.app.db.session import init_db
+from backend.app.tools.setup import register_native_tools
 
 settings = get_settings()
 
@@ -26,6 +28,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging(level=settings.LOG_LEVEL)
     if "sqlite" in settings.DATABASE_URL:
         await init_db()
+    register_native_tools()
     yield
     # Shutdown
 
@@ -82,3 +85,4 @@ async def workflow_engine_error_handler(request: Request, exc: WorkflowEngineErr
 # Mount Top-level & API routers
 app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(tools_router, prefix="/api/v1")
