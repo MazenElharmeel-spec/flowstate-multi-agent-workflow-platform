@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # Redis / Queue
     REDIS_URL: str = "redis://localhost:6379/0"
+    WORKER_METRICS_PORT: int = 8005
 
     # LLM Settings
     DEFAULT_LLM_PROVIDER: Literal["fake", "anthropic", "openai"] = "fake"

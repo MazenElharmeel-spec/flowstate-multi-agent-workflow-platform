@@ -1,0 +1,13 @@
+{
+  "title": "Workflow Platform Overview",
+  "uid": "workflow-platform-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "panels": [
+    {"id": 1, "title": "Runs by lifecycle status", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}, "targets": [{"expr": "sum by (status) (workflow_runs_total)", "legendFormat": "{{status}}", "refId": "A"}]},
+    {"id": 2, "title": "Queue depth", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}, "targets": [{"expr": "workflow_queue_depth", "legendFormat": "queued", "refId": "A"}]},
+    {"id": 3, "title": "Tool calls", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}, "targets": [{"expr": "sum by (tool_name, status) (rate(workflow_tool_calls_total[5m]))", "legendFormat": "{{tool_name}} / {{status}}", "refId": "A"}]},
+    {"id": 4, "title": "Run duration p95", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le, workflow_key) (rate(workflow_run_duration_seconds_bucket[5m])))", "legendFormat": "{{workflow_key}}", "refId": "A"}]}
+  ]
+}

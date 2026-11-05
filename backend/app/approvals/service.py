@@ -12,6 +12,7 @@ from backend.app.core.errors import ApprovalExpiredError, PermanentError
 from backend.app.core.security import Role, has_permission
 from backend.app.db.models import ApprovalRequest, AuditLog, User, WorkflowRun
 from backend.app.db.session import async_session_factory
+from backend.app.observability.metrics import APPROVAL_WAIT_SECONDS
 from backend.app.orchestration.events import event_bus
 from backend.app.orchestration.state import WorkflowState
 from backend.app.tools.registry import tool_registry
@@ -190,6 +191,11 @@ class ApprovalService:
                 "resolved_arguments": resolved_args,
             },
         )
+        if approval.created_at is not None:
+            created_at = approval.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=UTC)
+            APPROVAL_WAIT_SECONDS.observe((now - created_at).total_seconds())
 
         decision_payload = {
             "status": status_to_set,

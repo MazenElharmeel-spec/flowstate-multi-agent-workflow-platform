@@ -95,6 +95,46 @@ services:
       timeout: 5s
       retries: 5
 
+  otel-collector:
+    image: otel/opentelemetry-collector:0.111.0
+    container_name: awp-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./monitoring/otel-collector.yml:/etc/otel-collector-config.yml:ro
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: awp-prometheus
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9091:9090"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: awp-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/provisioning/dashboards:/var/lib/grafana/dashboards:ro
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3031:3000"
+    depends_on:
+      - prometheus
+
   api:
     build:
       context: .
@@ -114,6 +154,8 @@ services:
         condition: service_healthy
       payments-mcp:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     ports:
       - "8100:8000"
     environment:
@@ -127,6 +169,7 @@ services:
       ENVIRONMENT: production
       LOG_LEVEL: INFO
       SECRET_KEY: super-secret-production-key-change-me-at-least-32-chars
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     command: ["sh", "-c", "alembic upgrade head && python -m backend.app.db.seed && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
@@ -147,6 +190,8 @@ services:
         condition: service_healthy
       api:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/agent_workflow
       DATABASE_URL_SYNC: postgresql://postgres:postgrespassword@postgres:5432/agent_workflow
@@ -157,6 +202,8 @@ services:
       PAYMENTS_MCP_URL: http://payments-mcp:8004/mcp
       ENVIRONMENT: production
       SECRET_KEY: super-secret-production-key-change-me-at-least-32-chars
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      WORKER_METRICS_PORT: 8005
     command: ["python", "-m", "backend.app.orchestration.worker"]
 
   web:
@@ -176,3 +223,5 @@ volumes:
   redis_data:
   email_data:
   payments_data:
+  prometheus_data:
+  grafana_data:

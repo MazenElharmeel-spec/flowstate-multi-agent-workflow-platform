@@ -34,8 +34,11 @@ jobs:
       - run: npm run typecheck
         working-directory: frontend
 
-  compose-config:
+  compose-smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose config --quiet
+      - run: docker compose up --build -d
+      - run: curl --fail --retry 20 --retry-delay 3 http://localhost:8100/readyz
+      - if: always()
+        run: docker compose down

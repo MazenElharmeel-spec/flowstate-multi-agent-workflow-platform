@@ -9,6 +9,7 @@ from sqlalchemy import desc, func, select
 from backend.app.core.errors import PermanentError
 from backend.app.db.models import AuditLog, CheckpointRecord, User, WorkflowDefinition, WorkflowRun
 from backend.app.db.session import async_session_factory
+from backend.app.observability.metrics import RETRIES_TOTAL
 from backend.app.orchestration.events import event_bus
 
 
@@ -179,6 +180,7 @@ class RunLifecycleManager:
             workflow_version = previous.workflow_version
             inputs = dict(previous.inputs or {})
 
+        RETRIES_TOTAL.inc()
         return await self.create_run(
             workflow_key,
             inputs,

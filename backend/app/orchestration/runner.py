@@ -1,6 +1,8 @@
 """Workflow runner compiling graphs with durable database checkpoints and handling interrupts."""
 
 import logging
+import time
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,6 +13,12 @@ from sqlalchemy import select
 from backend.app.core.errors import BudgetExceededError, PermanentError
 from backend.app.db.models import WorkflowDefinition, WorkflowRun
 from backend.app.db.session import async_session_factory
+from backend.app.observability.metrics import (
+    ESTIMATED_COST_TOTAL,
+    RUN_DURATION_SECONDS,
+    TOKEN_USAGE_TOTAL,
+)
+from backend.app.observability.tracing import tracer
 from backend.app.orchestration.checkpointing import DatabaseCheckpointSaver
 from backend.app.orchestration.events import event_bus
 from backend.app.orchestration.graphs.customer_escalation import build_customer_escalation_graph
@@ -39,6 +47,8 @@ class WorkflowRunner:
         trace_id: str | None = None,
     ) -> dict[str, Any]:
         """Execute or resume a run using its thread_id checkpoint."""
+        trace_id = trace_id or uuid.uuid4().hex
+        execution_started_at = time.perf_counter()
         async with async_session_factory() as session:
             stmt = select(WorkflowRun).where(WorkflowRun.id == run_id)
             res = await session.execute(stmt)
@@ -100,8 +110,12 @@ class WorkflowRunner:
         final_state: dict[str, Any] = {}
 
         try:
-            async for event in app.astream(input_data, config=config, stream_mode="values"):
-                final_state = event
+            with tracer.start_as_current_span("workflow.run") as span:
+                span.set_attribute("workflow.run_id", run_id)
+                span.set_attribute("workflow.key", workflow_key)
+                span.set_attribute("workflow.trace_id", trace_id)
+                async for event in app.astream(input_data, config=config, stream_mode="values"):
+                    final_state = event
 
             # Check if execution paused on an interrupt (human-in-the-loop approval)
             snapshot = await app.aget_state(config)
@@ -145,6 +159,14 @@ class WorkflowRunner:
                 )
                 run_rec.finished_at = now
                 await session.commit()
+
+            RUN_DURATION_SECONDS.labels(workflow_key=workflow_key).observe(
+                time.perf_counter() - execution_started_at
+            )
+            TOKEN_USAGE_TOTAL.labels(workflow_key=workflow_key).inc(run_rec.total_tokens)
+            ESTIMATED_COST_TOTAL.labels(workflow_key=workflow_key).inc(
+                run_rec.estimated_cost_usd
+            )
 
             return final_state
 

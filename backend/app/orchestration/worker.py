@@ -6,12 +6,15 @@ import signal
 from contextlib import suppress
 from typing import Any
 
-from sqlalchemy import select, update
+from prometheus_client import start_http_server
+from sqlalchemy import func, select, update
 
 from backend.app.core.config import get_settings
 from backend.app.core.logging import setup_logging
 from backend.app.db.models import ApprovalRequest, WorkflowRun
 from backend.app.db.session import async_session_factory
+from backend.app.observability.metrics import QUEUE_DEPTH
+from backend.app.observability.tracing import setup_tracing
 from backend.app.orchestration.runner import runner
 from backend.app.tools.mcp_client import mcp_manager
 from backend.app.tools.setup import register_native_tools, setup_mcp_clients
@@ -27,6 +30,7 @@ class WorkflowWorker:
 
     async def start(self) -> None:
         self._running = True
+        setup_tracing()
         register_native_tools()
         setup_mcp_clients()
         await mcp_manager.initialize_all()
@@ -59,6 +63,10 @@ class WorkflowWorker:
             )
             res = await session.execute(stmt)
             queued_runs = res.scalars().all()
+            queue_count = await session.scalar(
+                select(func.count(WorkflowRun.id)).where(WorkflowRun.status == "queued")
+            )
+            QUEUE_DEPTH.set(int(queue_count or 0))
             run_ids: list[str] = []
             for queued_run in queued_runs:
                 claim = await session.execute(
@@ -123,6 +131,7 @@ worker = WorkflowWorker()
 
 async def run_worker() -> None:
     setup_logging(level=settings.LOG_LEVEL)
+    start_http_server(settings.WORKER_METRICS_PORT, addr="0.0.0.0")
     loop = asyncio.get_running_loop()
 
     for sig in (signal.SIGINT, signal.SIGTERM):

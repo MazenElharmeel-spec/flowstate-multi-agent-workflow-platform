@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: Workflow Platform
+    orgId: 1
+    folder: Workflow Platform
+    type: file
+    disableDeletion: true
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

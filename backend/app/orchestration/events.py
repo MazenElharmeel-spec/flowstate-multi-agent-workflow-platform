@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from backend.app.core.logging import redact_data
 from backend.app.db.models import RunEvent
 from backend.app.db.session import async_session_factory
+from backend.app.observability.metrics import APPROVALS_TOTAL, RUNS_TOTAL, TOOL_CALLS_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,23 @@ class EventBus:
         """Atomically persist event to DB with sequence number and broadcast to SSE."""
         sanitized_payload = redact_data(payload or {})
         now = datetime.now(UTC)
+        if event_type in {
+            "run.queued",
+            "run.started",
+            "run.waiting_approval",
+            "run.completed",
+            "run.failed",
+            "run.cancelled",
+            "run.timed_out",
+        }:
+            RUNS_TOTAL.labels(status=event_type.removeprefix("run.")).inc()
+        elif event_type.startswith("approval."):
+            APPROVALS_TOTAL.labels(event=event_type.removeprefix("approval.")).inc()
+        elif event_type == "tool.call":
+            TOOL_CALLS_TOTAL.labels(
+                tool_name=str(sanitized_payload.get("tool_name", "unknown")),
+                status=str(sanitized_payload.get("status", "unknown")),
+            ).inc()
 
         # 1. Persist to DB with auto-incrementing sequence number for the run
         async with async_session_factory() as session:

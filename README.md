@@ -67,7 +67,9 @@ To use Anthropic, set `DEFAULT_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` i
 ## Observability
 
 - JSON logs include timestamps and redact common secrets and card numbers.
-- `/metrics` exposes the Prometheus client endpoint.
+- The API and worker each expose `/metrics`; Prometheus scrapes both for run lifecycle, duration, queue depth, approval, tool, token, and estimated-cost metrics.
+- OpenTelemetry traces export to the included collector when configured; API requests and workflow runs are traced.
+- Grafana provisions a Prometheus-backed workflow dashboard.
 - Every run has a persisted ordered event timeline and a trace ID field.
 - SSE streams authenticated run events to the UI.
 
@@ -77,4 +79,4 @@ To use Anthropic, set `DEFAULT_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` i
 
 ## Known limitations and next steps
 
-The reference workflows are code-built by workflow key; arbitrary user-authored graph JSON is stored but not compiled. Redis is provisioned but the current durable queue and SSE event history use Postgres plus in-process fanout; multi-replica API deployments need shared Redis pub/sub and queue leases. Approval expiry is enforced when a decision is submitted but not yet auto-scheduled. The UI exposes checkpoint history but not arbitrary time-travel replay controls. OpenTelemetry SDK packages are present, but distributed trace export and Grafana dashboards still need wiring. The MCP fakes are sandbox tools; production deployments need scoped credentials and external provider adapters.
+The reference workflows are code-built by workflow key; arbitrary user-authored graph JSON is stored but not compiled. Redis is provisioned but the current durable queue and SSE event history use Postgres plus in-process fanout; multi-replica API deployments need shared Redis pub/sub and queue leases. Approval expiry is enforced when a decision is submitted but not yet auto-scheduled. The UI exposes checkpoint history but not arbitrary time-travel replay controls. The collector currently uses a debug exporter; configure an external exporter before production use. The MCP fakes are sandbox tools; production deployments need scoped credentials and external provider adapters.

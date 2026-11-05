@@ -20,6 +20,7 @@ from backend.app.core.config import get_settings
 from backend.app.core.errors import WorkflowEngineError
 from backend.app.core.logging import setup_logging
 from backend.app.db.seed import seed_database
+from backend.app.observability.tracing import setup_tracing
 from backend.app.tools.mcp_client import mcp_manager
 from backend.app.tools.setup import register_native_tools, setup_mcp_clients
 
@@ -30,6 +31,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     setup_logging(level=settings.LOG_LEVEL)
+    setup_tracing(app)
     if "sqlite" in settings.DATABASE_URL:
         await seed_database()
     register_native_tools()
