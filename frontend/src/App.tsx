@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-rout
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Background, Controls, Edge, Node, ReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Activity, ArrowDownLeft, ArrowUpRight, Check, ChevronRight, CircleHelp, Clock3, Command, FileText, LayoutDashboard, LogOut, Network, Play, Plus, RefreshCw, ShieldCheck, Workflow as WorkflowIcon, X } from 'lucide-react';
+import { Activity, ArrowDownLeft, ArrowUpRight, Check, ChevronRight, CircleHelp, Clock3, Command, FileText, LayoutDashboard, LogOut, Moon, Network, Play, Plus, RefreshCw, ShieldCheck, Sun, Workflow as WorkflowIcon, X } from 'lucide-react';
 import { API, Approval, Event, getToken, request, Run, setToken, User, Workflow } from './api';
 
 const money = (n: number) => `$${n.toFixed(3)}`;
@@ -12,13 +12,22 @@ const pretty = (s: string) => s.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.t
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
+    localStorage.getItem('flowstate-theme') === 'light' ? 'light' : 'dark',
+  );
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f5f7fb' : '#10151c');
+    localStorage.setItem('flowstate-theme', theme);
+  }, [theme]);
   useEffect(() => {
     if (!getToken()) { setAuthReady(true); return; }
     request<User>('/auth/me').then(setUser).catch(() => setToken('')).finally(() => setAuthReady(true));
   }, []);
   if (!authReady) return <div className="splash"><div className="brand-mark">F</div><span>Loading Flowstate</span></div>;
   if (!user) return <Login onLogin={setUser} />;
-  return <Shell user={user} onLogout={() => { setToken(''); setUser(null); }} />;
+  return <Shell user={user} theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} onLogout={() => { setToken(''); setUser(null); }} />;
 }
 
 function Login({ onLogin }: { onLogin: (user: User) => void }) {
@@ -32,13 +41,13 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
   return <main className="login-page"><div className="login-art"><div className="art-orbit orbit-a"/><div className="art-orbit orbit-b"/><div className="art-core"><Command size={34}/></div><div className="art-caption">Reliable AI operations<br/><span>with people in control.</span></div></div><form className="login-form" onSubmit={(e: FormEvent) => { e.preventDefault(); mutation.mutate(); }}><div className="eyebrow">WORKFLOW CONTROL PLANE</div><h1>Welcome back</h1><p>Sign in to your workspace to view runs and approvals.</p><label>Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required/></label><label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required/></label>{error && <div className="error-box">{error}</div>}<button className="button primary full" disabled={mutation.isPending}>{mutation.isPending ? 'Signing in…' : 'Sign in'}<ChevronRight size={16}/></button><div className="demo-note"><CircleHelp size={15}/> Demo: operator@example.com · OperatorSecret123!</div></form></main>;
 }
 
-function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
+function Shell({ user, theme, onToggleTheme, onLogout }: { user: User; theme: 'dark' | 'light'; onToggleTheme: () => void; onLogout: () => void }) {
   const queryClient = useQueryClient();
   const { data: runs = [] } = useQuery({ queryKey: ['runs'], queryFn: () => request<Run[]>('/runs'), refetchInterval: 12_000 });
   const { data: approvals = [] } = useQuery({ queryKey: ['approvals'], queryFn: () => request<Approval[]>('/approvals?status=pending'), refetchInterval: 12_000 });
   const { data: workflows = [] } = useQuery({ queryKey: ['workflows'], queryFn: () => request<Workflow[]>('/workflows') });
   const nav = [{ to: '/', label: 'Overview', icon: LayoutDashboard }, { to: '/runs', label: 'Workflow runs', icon: Activity }, { to: '/approvals', label: 'Approvals', icon: ShieldCheck, count: approvals.length }, { to: '/workflows', label: 'Workflow catalog', icon: WorkflowIcon }];
-  return <div className="app-shell"><aside className="sidebar"><Link to="/" className="brand"><div className="brand-mark">F</div><span>flowstate<small>AI WORKFLOW OPS</small></span></Link><div className="workspace-select"><span className="workspace-avatar">A</span><span>Acme Support<small>Production workspace</small></span><ChevronRight size={15}/></div><div className="nav-caption">WORKSPACE</div><nav>{nav.map(({ to, label, icon: Icon, count }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={17}/><span>{label}</span>{count ? <b className="nav-count">{count}</b> : null}</NavLink>)}</nav><div className="sidebar-bottom"><div className="status-card"><span className="pulse-dot"/><div><b>All systems operational</b><small>4 MCP servers connected</small></div></div><div className="user-card"><div className="user-avatar">{user.email[0].toUpperCase()}</div><div className="user-info"><b>{user.email.split('@')[0]}</b><small>{pretty(user.role)}</small></div><button className="icon-button" onClick={onLogout} title="Sign out"><LogOut size={16}/></button></div></div></aside><main className="main-area"><header className="topbar"><div className="breadcrumb">Workspace <ChevronRight size={13}/> <span>Operations</span></div><div className="top-actions"><span className="live-pill"><span className="pulse-dot"/> Live</span><div className="top-avatar">{user.email[0].toUpperCase()}</div></div></header><div className="page-content"><Routes><Route path="/" element={<Dashboard runs={runs} approvals={approvals} workflows={workflows} onRefresh={() => queryClient.invalidateQueries()}/>} /><Route path="/runs" element={<RunsPage runs={runs}/>} /><Route path="/runs/:runId" element={<RunDetail/>}/><Route path="/approvals" element={<ApprovalsPage approvals={approvals} onDone={() => queryClient.invalidateQueries()}/>} /><Route path="/workflows" element={<WorkflowsPage workflows={workflows}/>} /><Route path="*" element={<Dashboard runs={runs} approvals={approvals} workflows={workflows} onRefresh={() => queryClient.invalidateQueries()}/>} /></Routes></div></main></div>;
+  return <div className="app-shell"><aside className="sidebar"><Link to="/" className="brand"><div className="brand-mark">F</div><span>flowstate<small>AI WORKFLOW OPS</small></span></Link><div className="workspace-select"><span className="workspace-avatar">A</span><span>Acme Support<small>Production workspace</small></span><ChevronRight size={15}/></div><div className="nav-caption">WORKSPACE</div><nav>{nav.map(({ to, label, icon: Icon, count }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={17}/><span>{label}</span>{count ? <b className="nav-count">{count}</b> : null}</NavLink>)}</nav><div className="sidebar-bottom"><div className="status-card"><span className="pulse-dot"/><div><b>All systems operational</b><small>4 MCP servers connected</small></div></div><div className="user-card"><div className="user-avatar">{user.email[0].toUpperCase()}</div><div className="user-info"><b>{user.email.split('@')[0]}</b><small>{pretty(user.role)}</small></div><button className="icon-button" onClick={onLogout} title="Sign out"><LogOut size={16}/></button></div></div></aside><main className="main-area"><header className="topbar"><div className="breadcrumb">Workspace <ChevronRight size={13}/> <span>Operations</span></div><div className="top-actions"><span className="live-pill"><span className="pulse-dot"/> Live</span><button className="theme-toggle" type="button" onClick={onToggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>{theme === 'dark' ? <Sun size={16}/> : <Moon size={16}/>}</button><div className="top-avatar">{user.email[0].toUpperCase()}</div></div></header><div className="page-content"><Routes><Route path="/" element={<Dashboard runs={runs} approvals={approvals} workflows={workflows} onRefresh={() => queryClient.invalidateQueries()}/>} /><Route path="/runs" element={<RunsPage runs={runs}/>} /><Route path="/runs/:runId" element={<RunDetail/>}/><Route path="/approvals" element={<ApprovalsPage approvals={approvals} onDone={() => queryClient.invalidateQueries()}/>} /><Route path="/workflows" element={<WorkflowsPage workflows={workflows}/>} /><Route path="*" element={<Dashboard runs={runs} approvals={approvals} workflows={workflows} onRefresh={() => queryClient.invalidateQueries()}/>} /></Routes></div></main></div>;
 }
 
 function Dashboard({ runs, approvals, workflows, onRefresh }: { runs: Run[]; approvals: Approval[]; workflows: Workflow[]; onRefresh: () => void }) {
