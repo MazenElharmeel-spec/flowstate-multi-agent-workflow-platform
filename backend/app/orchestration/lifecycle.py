@@ -158,6 +158,34 @@ class RunLifecycleManager:
         )
         return run
 
+    async def retry_run(self, run_id: str, initiated_by: User | None = None) -> WorkflowRun:
+        """Create a new version-pinned run from a failed run's validated inputs."""
+        async with async_session_factory() as session:
+            result = await session.execute(select(WorkflowRun).where(WorkflowRun.id == run_id))
+            previous = result.scalar_one_or_none()
+            if previous is None:
+                raise PermanentError(f"Run '{run_id}' not found")
+            if previous.status != "failed":
+                raise PermanentError(f"Only failed runs can be retried; got '{previous.status}'")
+            definition_result = await session.execute(
+                select(WorkflowDefinition).where(
+                    WorkflowDefinition.id == previous.workflow_definition_id
+                )
+            )
+            definition = definition_result.scalar_one_or_none()
+            if definition is None:
+                raise PermanentError(f"Definition {previous.workflow_definition_id} not found")
+            workflow_key = definition.key
+            workflow_version = previous.workflow_version
+            inputs = dict(previous.inputs or {})
+
+        return await self.create_run(
+            workflow_key,
+            inputs,
+            initiated_by=initiated_by,
+            workflow_version=workflow_version,
+        )
+
     async def get_run_checkpoints(self, run_id: str) -> list[dict[str, Any]]:
         async with async_session_factory() as session:
             stmt = (

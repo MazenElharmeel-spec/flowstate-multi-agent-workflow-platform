@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from backend.app.approvals.policy_engine import policy_engine
 from backend.app.approvals.service import approval_service
-from backend.app.db.models import ApprovalRequest, RunEvent, User
+from backend.app.db.models import ApprovalRequest, RunEvent, User, WorkflowRun
 from backend.app.db.seed import seed_database
 from backend.app.db.session import async_session_factory
 from backend.app.orchestration.lifecycle import run_lifecycle
@@ -283,3 +283,20 @@ async def test_malicious_ticket_text_cannot_execute_refund_without_approval() ->
     assert approval.status == "pending"
     assert approval.original_arguments["amount"] == 120.0
     assert all(event.payload.get("tool_name") != "issue_refund" for event in events.scalars())
+
+
+@pytest.mark.asyncio
+async def test_failed_run_can_be_retried_with_original_version_and_inputs() -> None:
+    original = await run_lifecycle.create_run(
+        "weekly_ops_digest", {"reporting_period": "last_7_days"}
+    )
+    async with async_session_factory() as session:
+        failed = await session.get(WorkflowRun, original.id)
+        assert failed is not None
+        failed.status = "failed"
+        await session.commit()
+
+    retry = await run_lifecycle.retry_run(original.id)
+    assert retry.status == "queued"
+    assert retry.workflow_version == original.workflow_version
+    assert retry.inputs == original.inputs

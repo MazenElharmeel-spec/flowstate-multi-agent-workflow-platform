@@ -106,3 +106,12 @@ async def cancel_run(
 ) -> WorkflowRun:
     """Cancel an active or queued workflow run."""
     return await run_lifecycle.cancel_run(run_id, reason=reason, user_id=current_user.id)
+
+
+@router.post("/{run_id}/retry", response_model=WorkflowRunOut, status_code=status.HTTP_202_ACCEPTED)
+async def retry_run(
+    run_id: str,
+    current_user: Annotated[User, Depends(require_role(Role.OPERATOR))],
+) -> WorkflowRun:
+    """Re-enqueue a failed run using its original input and workflow version."""
+    return await run_lifecycle.retry_run(run_id, initiated_by=current_user)
