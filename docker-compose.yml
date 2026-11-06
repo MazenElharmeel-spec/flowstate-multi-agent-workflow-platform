@@ -135,13 +135,28 @@ services:
     depends_on:
       - prometheus
 
+  api-init:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/agent_workflow
+      DATABASE_URL_SYNC: postgresql://postgres:postgrespassword@postgres:5432/agent_workflow
+      ENVIRONMENT: production
+    command: ["sh", "-c", "alembic upgrade head && python -m backend.app.db.seed"]
+
   api:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: awp-api
     restart: unless-stopped
     depends_on:
+      api-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -156,12 +171,13 @@ services:
         condition: service_healthy
       otel-collector:
         condition: service_started
-    ports:
-      - "8100:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/agent_workflow
       DATABASE_URL_SYNC: postgresql://postgres:postgrespassword@postgres:5432/agent_workflow
       REDIS_URL: redis://redis:6379/0
+      REDIS_REQUIRED: "true"
+      DB_POOL_SIZE: 5
+      DB_MAX_OVERFLOW: 5
       CRM_MCP_URL: http://crm-mcp:8001/mcp
       TICKETING_MCP_URL: http://ticketing-mcp:8002/mcp
       EMAIL_MCP_URL: http://email-mcp:8003/mcp
@@ -170,9 +186,27 @@ services:
       LOG_LEVEL: INFO
       SECRET_KEY: super-secret-production-key-change-me-at-least-32-chars
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-    command: ["sh", "-c", "alembic upgrade head && python -m backend.app.db.seed && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"]
+    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    expose:
+      - "8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./monitoring/nginx/api-gateway.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "8100:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/healthz"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -181,7 +215,6 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: awp-worker
     restart: unless-stopped
     depends_on:
       postgres:
@@ -196,6 +229,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/agent_workflow
       DATABASE_URL_SYNC: postgresql://postgres:postgrespassword@postgres:5432/agent_workflow
       REDIS_URL: redis://redis:6379/0
+      DB_POOL_SIZE: 5
+      DB_MAX_OVERFLOW: 5
+      WORKER_MAX_CONCURRENCY: 5
       CRM_MCP_URL: http://crm-mcp:8001/mcp
       TICKETING_MCP_URL: http://ticketing-mcp:8002/mcp
       EMAIL_MCP_URL: http://email-mcp:8003/mcp
@@ -205,6 +241,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       WORKER_METRICS_PORT: 8005
     command: ["python", "-m", "backend.app.orchestration.worker"]
+    expose:
+      - "8005"
 
   web:
     build:

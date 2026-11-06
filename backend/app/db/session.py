@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -18,7 +19,13 @@ if "sqlite" in settings.DATABASE_URL:
 
 # Build async engine with connection pooling options where appropriate
 connect_args = {"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
-pool_kwargs = {"poolclass": NullPool} if "sqlite" in settings.DATABASE_URL else {}
+pool_kwargs: dict[str, Any] = {"poolclass": NullPool} if "sqlite" in settings.DATABASE_URL else {}
+if "sqlite" not in settings.DATABASE_URL:
+    pool_kwargs.update(
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_pre_ping=True,
+    )
 
 engine = create_async_engine(
     settings.DATABASE_URL,

@@ -31,12 +31,16 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/dev.db"
     DATABASE_URL_SYNC: str = "sqlite:///./data/dev.db"
-    DB_POOL_SIZE: int = 10
-    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
 
     # Redis / Queue
     REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_REQUIRED: bool = False
     WORKER_METRICS_PORT: int = 8005
+    WORKER_LEASE_SECONDS: int = 120
+    WORKER_HEARTBEAT_SECONDS: int = 30
+    WORKER_MAX_CONCURRENCY: int = 5
 
     # LLM Settings
     DEFAULT_LLM_PROVIDER: Literal["fake", "anthropic", "openai"] = "fake"

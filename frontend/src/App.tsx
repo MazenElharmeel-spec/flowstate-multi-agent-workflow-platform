@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Background, Controls, Edge, Node, ReactFlow } from '@xyflow/react';
@@ -101,15 +101,31 @@ function Dashboard({ runs, approvals, workflows, onRefresh }: { runs: Run[]; app
   </>;
 }
 function OrchestrationMap({ currentNode }: { currentNode?: string | null }) {
-  const nodeSpecs: Array<[string, string, number, number, string]> = [
-    ['triage', 'Triage agent', 10, 145, 'Intake'], ['research', 'Research agent', 225, 145, 'Context'],
-    ['planner', 'Resolution planner', 440, 145, 'Planning'], ['policy_gate', 'Policy gate', 655, 145, 'Approval'],
-    ['action', 'Action agent', 870, 60, 'Execution'], ['reviewer', 'Reviewer agent', 1080, 60, 'Review'],
-    ['escalate_fallback', 'Escalation path', 870, 245, 'Fallback'], ['report', 'Report agent', 1080, 245, 'Summary'],
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [canvasWidth, setCanvasWidth] = useState(0);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const observer = new ResizeObserver(([entry]) => setCanvasWidth(entry.contentRect.width));
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
+  const compact = canvasWidth < 480;
+  const tablet = canvasWidth < 1050;
+  const positions: Record<string, [number, number]> = compact
+    ? { triage: [0, 8], research: [0, 108], planner: [0, 208], policy_gate: [0, 308], action: [0, 408], reviewer: [0, 508], escalate_fallback: [0, 608], report: [0, 708] }
+    : tablet
+      ? { triage: [0, 8], research: [220, 8], planner: [220, 138], policy_gate: [0, 138], action: [0, 268], reviewer: [220, 268], escalate_fallback: [220, 398], report: [0, 398] }
+      : { triage: [10, 145], research: [225, 145], planner: [440, 145], policy_gate: [655, 145], action: [870, 60], reviewer: [1080, 60], escalate_fallback: [870, 245], report: [1080, 245] };
+  const nodeSpecs: Array<[string, string, string]> = [
+    ['triage', 'Triage agent', 'Intake'], ['research', 'Research agent', 'Context'],
+    ['planner', 'Resolution planner', 'Planning'], ['policy_gate', 'Policy gate', 'Approval'],
+    ['action', 'Action agent', 'Execution'], ['reviewer', 'Reviewer agent', 'Review'],
+    ['escalate_fallback', 'Escalation path', 'Fallback'], ['report', 'Report agent', 'Summary'],
   ];
-  const nodes: Node[] = nodeSpecs.map(([id, label, x, y, role]) => ({
+  const nodes: Node[] = nodeSpecs.map(([id, label, role]) => ({
     id,
-    position: { x, y },
+    position: { x: positions[id]?.[0] ?? 0, y: positions[id]?.[1] ?? 0 },
     data: { label: `${label} · ${role}` },
     className: `flow-node orchestration-node ${id === currentNode ? 'current' : ''} ${id === 'policy_gate' ? 'approval-gate' : ''}`,
   }));
@@ -119,7 +135,8 @@ function OrchestrationMap({ currentNode }: { currentNode?: string | null }) {
     animated: source === currentNode,
     style: { stroke: index > 5 ? '#42d8f4' : '#a68bff', strokeWidth: 2 },
   }));
-  return <div className="orchestration-canvas"><ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.12 }} nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} zoomOnDoubleClick={false} minZoom={0.3} maxZoom={1.2}><Background gap={24} size={1}/></ReactFlow></div>;
+  const canvasHeight = compact ? 830 : tablet ? 500 : 558;
+  return <div ref={canvasRef} className="orchestration-canvas" style={{ height: canvasHeight }}><ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.12 }} nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} zoomOnDoubleClick={false} minZoom={0.3} maxZoom={1.2}><Background gap={24} size={1}/></ReactFlow></div>;
 }
 function AnalyticsCard({ title, value, subtitle, values, tone }: { title: string; value: string; subtitle: string; values: number[]; tone: string }) {
   const max = Math.max(...values, 1);

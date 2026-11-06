@@ -177,6 +177,8 @@ class ApprovalService:
                 # The worker polls queued runs and reconstructs the resume payload
                 # from this durable approval record after a restart.
                 run.status = "queued"
+                run.worker_id = None
+                run.lease_expires_at = None
             await session.commit()
             await session.refresh(approval)
 

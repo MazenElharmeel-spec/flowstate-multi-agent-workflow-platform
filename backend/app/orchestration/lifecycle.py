@@ -140,6 +140,8 @@ class RunLifecycleManager:
 
             run.status = "cancelled"
             run.finished_at = datetime.now(UTC)
+            run.worker_id = None
+            run.lease_expires_at = None
             await session.commit()
             await session.refresh(run)
 

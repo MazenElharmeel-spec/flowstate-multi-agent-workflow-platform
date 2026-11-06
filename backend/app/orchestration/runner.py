@@ -133,6 +133,8 @@ class WorkflowRunner:
                     run_rec.status = "waiting_approval"
                     run_rec.current_node = "policy_gate"
                     run_rec.state_snapshot = clean_snapshot
+                    run_rec.worker_id = None
+                    run_rec.lease_expires_at = None
                     await session.commit()
 
                 await event_bus.publish(
@@ -158,6 +160,8 @@ class WorkflowRunner:
                     "estimated_cost_usd", run_rec.estimated_cost_usd
                 )
                 run_rec.finished_at = now
+                run_rec.worker_id = None
+                run_rec.lease_expires_at = None
                 await session.commit()
 
             RUN_DURATION_SECONDS.labels(workflow_key=workflow_key).observe(
@@ -177,6 +181,8 @@ class WorkflowRunner:
                 run_rec = res.scalar_one()
                 run_rec.status = "waiting_approval"
                 run_rec.current_node = "policy_gate"
+                run_rec.worker_id = None
+                run_rec.lease_expires_at = None
                 await session.commit()
 
             await event_bus.publish(
@@ -195,6 +201,8 @@ class WorkflowRunner:
                 run_rec = res.scalar_one()
                 run_rec.status = "failed"
                 run_rec.finished_at = now
+                run_rec.worker_id = None
+                run_rec.lease_expires_at = None
                 await session.commit()
 
             await event_bus.publish(
@@ -213,6 +221,8 @@ class WorkflowRunner:
                 run_rec = res.scalar_one()
                 run_rec.status = "failed"
                 run_rec.finished_at = now
+                run_rec.worker_id = None
+                run_rec.lease_expires_at = None
                 await session.commit()
 
             await event_bus.publish(

@@ -4,10 +4,11 @@
 
 ```mermaid
 flowchart LR
-  UI[React operations console] -->|JWT REST and SSE| API[FastAPI]
+  UI[React operations console] -->|JWT REST and SSE| GW[API gateway]
+  GW --> API[FastAPI replicas]
   API --> DB[(PostgreSQL 16)]
   API --> Q[Durable queued run records]
-  W[Worker process] -->|claim queued rows| DB
+  W[Worker replicas] -->|SKIP LOCKED + leases| DB
   W --> G[LangGraph runner]
   G --> CP[(Postgres checkpoints)]
   G --> MCP[MCP tool registry]
@@ -17,10 +18,12 @@ flowchart LR
   MCP --> PAY[Payments sandbox]
   G --> EVT[Append-only run events]
   EVT --> DB
-  EVT -->|SSE| UI
+  EVT -->|Redis pub/sub| R[(Redis)]
+  R -->|instance fanout| API
+  API -->|SSE| UI
 ```
 
-The API creates a version-pinned run after validating its JSON input schema. The worker claims queued rows with an atomic status update. LangGraph writes checkpoints to Postgres; approval decisions change the corresponding run back to `queued`, and the worker reconstructs the resume command from the durable approval row. On worker startup, stale `running` rows are requeued. Every payment write uses a stable idempotency key derived from run and action identifiers.
+The API creates a version-pinned run after validating its JSON input schema. Workers claim queued rows in a transaction with `FOR UPDATE SKIP LOCKED`, set an owner and lease expiry, and renew the lease while executing. If a worker exits, another worker requeues the row after its lease expires. LangGraph writes checkpoints to Postgres; approval decisions clear the old lease, return the run to `queued`, and are used to reconstruct the resume command. Every payment write uses a stable idempotency key derived from run and action identifiers.
 
 ## Approval sequence
 
@@ -59,8 +62,10 @@ sequenceDiagram
 
 Run events include `run.queued`, `run.started`, `run.waiting_approval`, `run.completed`, `run.failed`, and `run.cancelled`; node events include `node.started` and `node.finished`; action events include `tool.call`, `policy.evaluated`, `approval.requested`, and `approval.resolved`. Event payloads pass through recursive redaction before persistence and streaming.
 
-## Operational choices and current boundaries
+## Horizontal scaling
 
-Arq was selected as a possible queue library in dependencies, but the current worker uses PostgreSQL as the durable queue and an atomic compare-and-set claim. This keeps the demo's run record and queue state in one transaction boundary. Redis is included in Compose for future pub/sub, rate limiting, and distributed coordination; current SSE fanout is in-process, so multiple API replicas need a shared Redis event channel before horizontal scaling.
+Compose separates schema/seed initialization from API startup, so scaled API replicas do not race through migrations. The Nginx gateway resolves API replicas through Docker DNS. Run `docker compose up -d --scale api=2 --scale worker=3` to add replicas. Prometheus discovers all API and worker replicas. Redis pub/sub distributes events to SSE subscribers on all API replicas; the append-only Postgres event log remains authoritative, and SSE reads new rows from it to recover from missed or out-of-order pub/sub notifications. Configure database pool limits to fit the PostgreSQL connection budget before increasing replica counts.
 
-The shipped graph builders are versioned by workflow key and currently contain two executable definitions. User-created graph JSON is stored and versioned, but arbitrary graph JSON is not dynamically compiled. MCP sandboxes use deterministic local fixture data. The fake LLM is the default; set an Anthropic key and provider setting to use the remote model. Full time-travel replay controls, automatic approval expiry scheduling, per-user tenant isolation, and a Grafana dashboard are follow-up work; checkpoint history and the core approval/resume path are available.
+## Current boundaries
+
+The shipped graph builders are versioned by workflow key and currently contain two executable definitions. User-created graph JSON is stored and versioned, but arbitrary graph JSON is not dynamically compiled. MCP sandboxes use deterministic local fixture data. The fake LLM is the default; set an Anthropic key and provider setting to use the remote model. Full time-travel replay controls, automatic approval expiry scheduling, and per-user tenant isolation remain follow-up work; checkpoint history and the core approval/resume path are available.

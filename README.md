@@ -40,7 +40,17 @@ flowchart LR
   EV --> UI
 ```
 
-The worker claims queued records atomically from Postgres. On restart, stale `running` rows are re-queued, and LangGraph resumes from the most recent checkpoint. Approval decisions are persisted before the run is queued again. See [architecture documentation](docs/architecture.md) and [ADRs](docs/adr/).
+Workers claim queued records with PostgreSQL `SKIP LOCKED` and renewable leases. Expired leases are re-queued, and LangGraph resumes from the most recent checkpoint. Approval decisions are persisted before a run is queued again. Redis pub/sub fans run events out to SSE clients connected to any API replica. See [architecture documentation](docs/architecture.md) and [ADRs](docs/adr/).
+
+Scale the API and worker pools independently while keeping the same PostgreSQL and Redis services:
+
+```bash
+docker compose up --build -d --scale api=2 --scale worker=3
+```
+
+The API gateway remains at `http://localhost:8100`; the web console remains at `http://localhost:3010`. Prometheus discovers every API and worker replica through Docker DNS. Each worker runs up to five workflows concurrently by default; tune `WORKER_MAX_CONCURRENCY`, `DB_POOL_SIZE`, and `DB_MAX_OVERFLOW` against the connection budget of your PostgreSQL deployment before increasing replica counts further.
+
+The overview and agent topology reflow to tablet and phone widths; the agent graph uses a two-column or single-column layout on narrower screens.
 
 ## Security and failure handling
 
@@ -79,4 +89,4 @@ To use Anthropic, set `DEFAULT_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` i
 
 ## Known limitations and next steps
 
-The reference workflows are code-built by workflow key; arbitrary user-authored graph JSON is stored but not compiled. Redis is provisioned but the current durable queue and SSE event history use Postgres plus in-process fanout; multi-replica API deployments need shared Redis pub/sub and queue leases. Approval expiry is enforced when a decision is submitted but not yet auto-scheduled. The UI exposes checkpoint history but not arbitrary time-travel replay controls. The collector currently uses a debug exporter; configure an external exporter before production use. The MCP fakes are sandbox tools; production deployments need scoped credentials and external provider adapters.
+The API and worker tiers can scale horizontally in Compose; PostgreSQL remains the durable queue, run store, event log, and checkpoint store, while Redis provides live event fanout. Production deployments should tune database pool limits, Redis/PostgreSQL capacity, worker concurrency, and load balancing for their traffic. The reference workflows are code-built by workflow key; arbitrary user-authored graph JSON is stored but not compiled. Approval expiry is enforced when a decision is submitted but not yet auto-scheduled. The UI exposes checkpoint history but not arbitrary time-travel replay controls. The collector currently uses a debug exporter; configure an external exporter before production use. The MCP fakes are sandbox tools; production deployments need scoped credentials and external provider adapters.

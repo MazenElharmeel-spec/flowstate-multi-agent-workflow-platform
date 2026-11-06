@@ -46,7 +46,8 @@ async def readyz(
         checks["redis"] = "ok"
     except Exception as exc:
         checks["redis"] = f"warning: {str(exc)}"
-        # In local/standalone test mode, if redis isn't running, don't fail readyz unless required
+        if settings.REDIS_REQUIRED:
+            is_ready = False
 
     if not is_ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
