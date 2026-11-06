@@ -11,7 +11,7 @@ This repository implements an agent workflow platform. It does **not** implement
 - Enabled horizontal API and worker replicas with a Docker API gateway, PostgreSQL `SKIP LOCKED` claims, and renewable worker leases; verified a local two-API/three-worker deployment.
 - Delivered a responsive operations console, OpenAPI documentation, synthetic fixtures, deterministic evaluation, and automated backend tests.
 
-**Links:** [Source repository](../README.md) · Local demo instructions: [README](../README.md#run-the-demo). No public hosted demo is currently available.
+**Links:** [GitHub](https://github.com/MazenElharmeel-spec/flowstate-multi-agent-workflow-platform) · Local demo instructions: [README](../README.md#run-the-demo). No public hosted demo is currently available.
 
 ## Claims to avoid for this repository
 

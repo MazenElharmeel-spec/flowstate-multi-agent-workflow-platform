@@ -1,5 +1,7 @@
 # Flowstate — Multi-Agent AI Workflow Platform
 
+[GitHub repository](https://github.com/MazenElharmeel-spec/flowstate-multi-agent-workflow-platform)
+
 Flowstate is a demo platform for durable, auditable AI workflows. It combines **FastAPI**, **LangGraph**, **PostgreSQL**, **Redis**, MCP sandbox tools, and a responsive React operations console. It demonstrates human approval gates, checkpointed execution, retry, idempotent actions, horizontal API/worker scaling, and workflow observability.
 
 The default scripted model makes the demo deterministic and requires no paid model API key. The included CRM, ticketing, payment, and email services are local synthetic sandboxes; this is not a production refund system.
@@ -23,8 +25,8 @@ The screenshots use seeded synthetic data. They show the local demo UI, not a ho
 ### Start
 
 ```bash
-git clone <repository-url>
-cd <repository-directory>
+git clone https://github.com/MazenElharmeel-spec/flowstate-multi-agent-workflow-platform.git
+cd flowstate-multi-agent-workflow-platform
 cp .env.example .env
 docker compose up --build -d
 ```
