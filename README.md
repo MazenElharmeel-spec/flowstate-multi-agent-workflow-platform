@@ -1,92 +1,148 @@
 # Flowstate — Multi-Agent AI Workflow Platform
 
-A production-minded demo platform for durable, auditable AI workflows. It uses FastAPI, SQLAlchemy, LangGraph, a separate worker, MCP sandbox services, and a React operations console. The default scripted LLM mode runs without an API key.
+Flowstate is a demo platform for durable, auditable AI workflows. It combines **FastAPI**, **LangGraph**, **PostgreSQL**, **Redis**, MCP sandbox tools, and a responsive React operations console. It demonstrates human approval gates, checkpointed execution, retry, idempotent actions, horizontal API/worker scaling, and workflow observability.
 
-## 5-minute demo
+The default scripted model makes the demo deterministic and requires no paid model API key. The included CRM, ticketing, payment, and email services are local synthetic sandboxes; this is not a production refund system.
 
-Requirements: Docker Compose v2, Node/npm (for local frontend development), and Python 3.12 (for local checks). The containerized demo does not need an Anthropic key.
+## Screenshots
+
+| Operations overview | Approval review |
+| --- | --- |
+| ![Flowstate operations dashboard](docs/screenshots/overview.png) | ![Flowstate human approval review](docs/screenshots/approval-review.png) |
+
+The screenshots use seeded synthetic data. They show the local demo UI, not a hosted service.
+
+## Run the demo
+
+### Requirements
+
+- Docker Engine with Docker Compose v2
+- Enough Docker resources to run the API, workers, database, cache, frontend, and sandbox services
+- Ports `3010`, `3031`, `5433`, `6380`, `8100`, and `9091` available
+
+### Start
 
 ```bash
+git clone <repository-url>
+cd <repository-directory>
 cp .env.example .env
-make up
+docker compose up --build -d
 ```
 
-Compose starts Postgres, Redis, four MCP sandbox servers, the API, worker, and web console. The API applies Alembic migrations and seeds demo users and versioned workflows. Open [http://localhost:3010](http://localhost:3010), then sign in:
+Open the console at [http://localhost:3010](http://localhost:3010). Sign in with one of the local demo accounts:
 
-- Operator: `operator@example.com` / `OperatorSecret123!`
-- Approver: `approver@example.com` / `ApproverSecret123!`
-- Admin: `admin@example.com` / `AdminSecret123!`
+| Role | Email | Password |
+| --- | --- | --- |
+| Operator | `operator@example.com` | `OperatorSecret123!` |
+| Approver | `approver@example.com` | `ApproverSecret123!` |
+| Admin | `admin@example.com` | `AdminSecret123!` |
 
-Create a Customer Escalation run from the catalog. The scripted scenario classifies a damaged product, gathers CRM/ticket/payment/KB context, proposes a $120 refund, then pauses because refunds above $50 require approval. Sign in as the approver, edit the amount if desired, and approve or reject. The worker resumes the saved graph checkpoint. The payment and email sandboxes persist idempotency keys in SQLite volumes, so replaying an action returns its original result.
+These credentials are intentionally public demo credentials. Use them only with the local sandbox.
 
-Weekly Ops Digest is included as a second workflow. API docs are at [http://localhost:8100/docs](http://localhost:8100/docs); readiness is at Readiness is at [http://localhost:8100/readyz](http://localhost:8100/readyz) and Prometheus metrics are at `/metrics`.
+### Try a human-approved workflow
+
+1. Sign in as the operator and open **Workflow catalog**.
+2. Start **Customer Escalation Resolution**. The seeded scenario proposes a refund above the approval threshold.
+3. Open **Approvals** as the approver. Approve, reject, or edit the proposed refund amount.
+4. Return to the run details to inspect its graph, event history, checkpoints, and result.
+
+The **Weekly Ops Digest** workflow is a shorter run for exploring queueing and run telemetry. Example request payloads and the synthetic fixture summary are in [`examples/`](examples/).
+
+### Stop
+
+```bash
+docker compose down
+```
+
+This stops containers and preserves demo database volumes. No public hosted demo is currently deployed; the Compose stack is the runnable demo.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  UI[React + React Flow UI] -->|JWT REST / SSE| API[FastAPI]
-  API --> PG[(Postgres: runs, events, approvals, checkpoints)]
-  API --> WQ[Durable queued rows]
-  W[Worker] --> PG
-  W --> G[LangGraph]
-  G --> CP[(Postgres checkpoints)]
-  G --> REG[Least-privilege tool registry]
-  REG --> CRM[CRM MCP]
-  REG --> TIX[Ticketing MCP]
-  REG --> MAIL[Email MCP]
-  REG --> PAY[Payments MCP]
-  G --> EV[Append-only run events]
-  EV --> UI
+  UI[React operations console] -->|JWT REST and SSE| GW[Nginx API gateway]
+  GW --> API[FastAPI replicas]
+  API --> PG[(PostgreSQL: runs, events, approvals, checkpoints)]
+  API --> REDIS[(Redis pub/sub)]
+  WORKERS[Worker replicas] -->|SKIP LOCKED + leases| PG
+  WORKERS --> LG[LangGraph runner]
+  LG --> CP[(Postgres checkpoints)]
+  LG --> TOOLS[Tool registry]
+  TOOLS --> CRM[CRM MCP sandbox]
+  TOOLS --> TIX[Ticketing MCP sandbox]
+  TOOLS --> PAY[Payments MCP sandbox]
+  TOOLS --> EMAIL[Email MCP sandbox]
+  LG --> EVENTS[Append-only event log]
+  EVENTS --> PG
+  EVENTS --> REDIS
+  REDIS -->|Cross-replica event fanout| API
+  PROM[Prometheus] -->|Scrapes /metrics| API
+  PROM -->|Scrapes /metrics| WORKERS
+  GRAFANA[Grafana] -->|Queries| PROM
 ```
 
-Workers claim queued records with PostgreSQL `SKIP LOCKED` and renewable leases. Expired leases are re-queued, and LangGraph resumes from the most recent checkpoint. Approval decisions are persisted before a run is queued again. Redis pub/sub fans run events out to SSE clients connected to any API replica. See [architecture documentation](docs/architecture.md) and [ADRs](docs/adr/).
+Workers claim queued rows with PostgreSQL `FOR UPDATE SKIP LOCKED`, set an owner and renewable lease, and recover expired leases while polling. LangGraph checkpoints runs in PostgreSQL. Approval decisions are persisted before resumption. Redis distributes live events to SSE subscribers connected to any API replica; the database event log remains the source of truth.
 
-Scale the API and worker pools independently while keeping the same PostgreSQL and Redis services:
+Scale the API and worker tiers independently:
 
 ```bash
 docker compose up --build -d --scale api=2 --scale worker=3
 ```
 
-The API gateway remains at `http://localhost:8100`; the web console remains at `http://localhost:3010`. Prometheus discovers every API and worker replica through Docker DNS. Each worker runs up to five workflows concurrently by default; tune `WORKER_MAX_CONCURRENCY`, `DB_POOL_SIZE`, and `DB_MAX_OVERFLOW` against the connection budget of your PostgreSQL deployment before increasing replica counts further.
+The API gateway stays at [http://localhost:8100](http://localhost:8100), and the console stays at [http://localhost:3010](http://localhost:3010). Prometheus discovers replicas through Docker DNS. Each worker runs up to five workflows concurrently by default; tune `WORKER_MAX_CONCURRENCY`, `DB_POOL_SIZE`, and `DB_MAX_OVERFLOW` to fit your PostgreSQL connection budget.
 
-The overview and agent topology reflow to tablet and phone widths; the agent graph uses a two-column or single-column layout on narrower screens.
+The overview and agent graph adapt to smaller screens; the graph reflows into two-column and single-column layouts.
 
-## Security and failure handling
+## API documentation
 
-JWT-protected API routes enforce role permissions. Registration and workflow definition creation require an administrator; run creation/cancellation requires an operator; approval decisions require an approver. Refunds above $50 pause at a graph interrupt. Edited arguments are schema-validated and checked by policy again. Tool outputs are size-limited and explicitly wrapped as untrusted context. Run event payloads pass through recursive secret/PII redaction.
+- Interactive Swagger UI: [http://localhost:8100/docs](http://localhost:8100/docs)
+- OpenAPI JSON: [http://localhost:8100/openapi.json](http://localhost:8100/openapi.json)
+- Concise route/authentication reference: [`docs/api-reference.md`](docs/api-reference.md)
 
-MCP calls have timeouts, bounded retries, and transient/permanent error classes. Refund and email writes require idempotency keys, which are persisted by the sandbox services. The worker re-queues in-flight runs after restart; the database checkpoints preserve graph progress. The test suite covers approval, edit/reject, tool idempotency, MCP failure, and malicious ticket text.
+Protected endpoints use `Authorization: Bearer <access_token>`. The API includes authentication, workflow definitions, run lifecycle/history/SSE, approvals, tool metadata, health, and Prometheus metrics.
 
-## Local development
+## Development and tests
+
+Backend setup and checks:
 
 ```bash
 uv sync --extra dev
-make migrate
-make seed
 make test
 make lint
 make typecheck
-make web-build
 ```
 
-For a local Vite frontend, run `cd frontend && npm install && npm run dev`; set `VITE_API_URL=http://localhost:8100/api/v1` if using the API outside Compose. The browser login uses the demo users seeded above.
+Frontend setup and build:
 
-To use Anthropic, set `DEFAULT_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `.env`. The scripted fake provider is the default and keeps the demo deterministic.
+```bash
+cd frontend
+npm ci
+npm run build
+npm run typecheck
+```
 
-## Observability
+The backend suite includes unit and integration tests for authentication and role permissions, approval/edit/reject flows, tool idempotency, MCP discovery/failures, and malicious ticket content. CI runs backend tests and static checks, the frontend build/typecheck, and a Compose readiness smoke check.
 
-- JSON logs include timestamps and redact common secrets and card numbers.
-- The API and worker each expose `/metrics`; Prometheus scrapes both for run lifecycle, duration, queue depth, approval, tool, token, and estimated-cost metrics.
-- OpenTelemetry traces export to the included collector when configured; API requests and workflow runs are traced.
-- Grafana provisions a Prometheus-backed workflow dashboard.
-- Every run has a persisted ordered event timeline and a trace ID field.
-- SSE streams authenticated run events to the UI.
+## Example data and safety
+
+All bundled customer, ticket, payment, and order records are synthetic fixtures. They use reserved `example.com` email addresses and contain no imported customer data. See [`examples/synthetic-support-scenarios.json`](examples/synthetic-support-scenarios.json) and [`examples/README.md`](examples/README.md).
+
+Refund proposals above `$50` pause for human approval. Edited arguments are schema-validated and rechecked by policy. Payment and email writes require idempotency keys persisted by their sandbox MCP servers. Run events pass through secret/PII redaction before storage and streaming.
 
 ## Evaluation
 
-`make eval` runs 25 scripted customer escalation variants and writes [`docs/eval-report.md`](docs/eval-report.md). Set the provider to Anthropic to exercise a real model. The report labels the deterministic scripted benchmark scope; it is not a substitute for a broader quality and safety evaluation.
+[`docs/eval-report.md`](docs/eval-report.md) records the deterministic scripted benchmark, including its scope and limitations. It is a regression check for this seeded demo, not a broad model-quality or production safety evaluation. Set `DEFAULT_LLM_PROVIDER=anthropic` and provide `ANTHROPIC_API_KEY` in `.env` only if you want to try a real model provider.
 
-## Known limitations and next steps
+## CV project description
 
-The API and worker tiers can scale horizontally in Compose; PostgreSQL remains the durable queue, run store, event log, and checkpoint store, while Redis provides live event fanout. Production deployments should tune database pool limits, Redis/PostgreSQL capacity, worker concurrency, and load balancing for their traffic. The reference workflows are code-built by workflow key; arbitrary user-authored graph JSON is stored but not compiled. Approval expiry is enforced when a decision is submitted but not yet auto-scheduled. The UI exposes checkpoint history but not arbitrary time-travel replay controls. The collector currently uses a debug exporter; configure an external exporter before production use. The MCP fakes are sandbox tools; production deployments need scoped credentials and external provider adapters.
+The truthful project summary and resume bullets are in [`docs/cv-project-description.md`](docs/cv-project-description.md). This repository does **not** implement the proposed pgvector RAG assistant: it has no document ingestion pipeline, vector database, source citations, or retrieval evaluation. Do not describe it as that system.
+
+## Limitations
+
+- Workflow graphs are built in code by workflow key; stored user-authored graph JSON is not dynamically compiled.
+- PostgreSQL is the durable queue and checkpoint store. Horizontal capacity depends on PostgreSQL, Redis, LLM-provider, and MCP sandbox limits.
+- The bundled MCP tools use deterministic local fixtures; production use requires real providers and scoped credentials.
+- Approval expiry is checked when a decision is submitted but is not automatically scheduled.
+- Checkpoint history is visible, but arbitrary time-travel replay controls are not implemented.
+- The OpenTelemetry Collector currently uses a debug exporter. Configure a production exporter and secure the observability endpoints before deployment.
+- The local demo credentials are intentionally public. Replace secrets, configure TLS, restrict CORS, and add tenant isolation before exposing any deployment.

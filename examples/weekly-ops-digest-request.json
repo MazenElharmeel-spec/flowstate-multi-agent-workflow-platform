@@ -1,0 +1,6 @@
+{
+  "workflow_key": "weekly_ops_digest",
+  "inputs": {
+    "reporting_period": "last_7_days"
+  }
+}

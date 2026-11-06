@@ -1,0 +1,9 @@
+{
+  "workflow_key": "customer_escalation",
+  "inputs": {
+    "ticket_id": "tick-501",
+    "customer_id": "cust-101",
+    "description": "The delivered headset was damaged and needs review.",
+    "priority": "high"
+  }
+}
