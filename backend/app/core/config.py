@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    SEED_ADMIN_USER: bool = True
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/dev.db"

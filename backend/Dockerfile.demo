@@ -1,0 +1,29 @@
+FROM node:22-alpine AS frontend-build
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM python:3.12-slim AS backend-build
+WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml README.md ./
+RUN pip install --no-cache-dir hatchling \
+    && pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels .
+
+FROM python:3.12-slim
+WORKDIR /app
+RUN useradd -m -u 1000 appuser && mkdir -p /app/data && chown -R appuser:appuser /app
+COPY --from=backend-build /build/wheels /wheels
+COPY pyproject.toml README.md ./
+RUN pip install --no-cache-dir /wheels/*.whl
+COPY --chown=appuser:appuser backend /app/backend
+COPY --chown=appuser:appuser alembic.ini /app/alembic.ini
+COPY --from=frontend-build --chown=appuser:appuser /frontend/dist /app/frontend/dist
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+EXPOSE 10000
+USER appuser
+CMD ["python", "-m", "backend.app.hosted_demo"]

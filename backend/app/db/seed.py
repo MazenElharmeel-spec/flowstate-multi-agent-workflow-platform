@@ -5,6 +5,7 @@ import logging
 
 from sqlalchemy import select
 
+from backend.app.core.config import get_settings
 from backend.app.core.security import Role, get_password_hash
 from backend.app.db.models import User, WorkflowDefinition
 from backend.app.db.session import async_session_factory, init_db
@@ -18,11 +19,12 @@ async def seed_database() -> None:
     async with async_session_factory() as session:
         # 1. Seed Users
         users_to_seed = [
-            ("admin@example.com", "AdminSecret123!", Role.ADMIN.value),
             ("operator@example.com", "OperatorSecret123!", Role.OPERATOR.value),
             ("approver@example.com", "ApproverSecret123!", Role.APPROVER.value),
             ("viewer@example.com", "ViewerSecret123!", Role.VIEWER.value),
         ]
+        if get_settings().SEED_ADMIN_USER:
+            users_to_seed.append(("admin@example.com", "AdminSecret123!", Role.ADMIN.value))
 
         for email, password, role in users_to_seed:
             res = await session.execute(select(User).where(User.email == email))
@@ -62,8 +64,22 @@ async def seed_database() -> None:
                     "required": ["ticket_id", "customer_id"],
                 },
                 graph_definition={
-                    "nodes": ["triage", "research", "planner", "policy_gate", "action", "reviewer", "report"],
-                    "agents": ["TriageAgent", "ResearchAgent", "PlannerAgent", "ActionAgent", "ReviewerAgent"],
+                    "nodes": [
+                        "triage",
+                        "research",
+                        "planner",
+                        "policy_gate",
+                        "action",
+                        "reviewer",
+                        "report",
+                    ],
+                    "agents": [
+                        "TriageAgent",
+                        "ResearchAgent",
+                        "PlannerAgent",
+                        "ActionAgent",
+                        "ReviewerAgent",
+                    ],
                 },
                 is_active=True,
             )

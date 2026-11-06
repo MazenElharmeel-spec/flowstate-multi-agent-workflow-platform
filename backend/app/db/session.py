@@ -12,6 +12,16 @@ from backend.app.core.config import get_settings
 
 settings = get_settings()
 
+
+def async_database_url(url: str) -> str:
+    """Normalize provider PostgreSQL URLs for SQLAlchemy's async driver."""
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
+
+
 # Ensure local SQLite directory exists if using SQLite
 if "sqlite" in settings.DATABASE_URL:
     data_dir = Path("./data")
@@ -28,7 +38,7 @@ if "sqlite" not in settings.DATABASE_URL:
     )
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    async_database_url(settings.DATABASE_URL),
     echo=settings.DEBUG,
     future=True,
     connect_args=connect_args,
