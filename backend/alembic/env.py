@@ -6,10 +6,6 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from backend.app.core.config import get_settings
-from backend.app.db import models  # noqa: F401
-from backend.app.db.session import Base, async_database_url
-
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -19,12 +15,15 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+from backend.app.core.config import get_settings
+from backend.app.db.session import Base
+from backend.app.db import models  # noqa: F401
+
 target_metadata = Base.metadata
 settings = get_settings()
 
-config.set_main_option(
-    "sqlalchemy.url", async_database_url(settings.DATABASE_URL).replace("%", "%%")
-)
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+
 
 
 def run_migrations_offline() -> None:

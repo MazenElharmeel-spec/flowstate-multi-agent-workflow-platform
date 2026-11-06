@@ -2,8 +2,6 @@
 
 [GitHub repository](https://github.com/MazenElharmeel-spec/flowstate-multi-agent-workflow-platform)
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/MazenElharmeel-spec/flowstate-multi-agent-workflow-platform)
-
 Flowstate is a demo platform for durable, auditable AI workflows. It combines **FastAPI**, **LangGraph**, **PostgreSQL**, **Redis**, MCP sandbox tools, and a responsive React operations console. It demonstrates human approval gates, checkpointed execution, retry, idempotent actions, horizontal API/worker scaling, and workflow observability.
 
 The default scripted model makes the demo deterministic and requires no paid model API key. The included CRM, ticketing, payment, and email services are local synthetic sandboxes; this is not a production refund system.
@@ -15,8 +13,6 @@ The default scripted model makes the demo deterministic and requires no paid mod
 | ![Flowstate operations dashboard](docs/screenshots/overview.png) | ![Flowstate human approval review](docs/screenshots/approval-review.png) |
 
 The screenshots use seeded synthetic data. They show the local demo UI, not a hosted service.
-
-The [Render Blueprint](render.yaml) bundles the web app, workflow worker, and sandbox MCP tools into one small demo service, with managed PostgreSQL and Redis. The free web service sleeps after 15 minutes without traffic and can take about a minute to wake. The free PostgreSQL database expires after 30 days; upgrade or migrate it before then if you want to keep the demo running. The hosted seed omits the admin account; operator and approver demo accounts remain available. Hosted deployment setup and limitations are documented here so this demo does not imply production readiness.
 
 ## Run the demo
 
@@ -41,7 +37,7 @@ Open the console at [http://localhost:3010](http://localhost:3010). Sign in with
 | --- | --- | --- |
 | Operator | `operator@example.com` | `OperatorSecret123!` |
 | Approver | `approver@example.com` | `ApproverSecret123!` |
-| Admin (local demo only) | `admin@example.com` | `AdminSecret123!` |
+| Admin | `admin@example.com` | `AdminSecret123!` |
 
 These credentials are intentionally public demo credentials. Use them only with the local sandbox.
 

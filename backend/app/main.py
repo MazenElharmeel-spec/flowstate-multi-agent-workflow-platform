@@ -1,17 +1,14 @@
 """FastAPI application initialization, middleware, and lifecycle."""
 
-import os
 import time
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any, cast
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from backend.app.api.approvals import router as approvals_router
 from backend.app.api.auth import router as auth_router
@@ -104,9 +101,3 @@ app.include_router(tools_router, prefix="/api/v1")
 app.include_router(workflows_router, prefix="/api/v1")
 app.include_router(runs_router, prefix="/api/v1")
 app.include_router(approvals_router, prefix="/api/v1")
-
-# The hosted demo image includes the React build and serves it from the same
-# origin as the API. Local Compose continues to use the separate Nginx web tier.
-frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-if os.getenv("SERVE_FRONTEND", "false").lower() == "true" and frontend_dist.is_dir():
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
