@@ -170,7 +170,9 @@ class EventBus:
             await self._dispatch_local(run_id, event_dict)
         else:
             try:
-                await self._redis.publish(EVENT_CHANNEL, json.dumps(event_dict, separators=(",", ":")))
+                await self._redis.publish(
+                    EVENT_CHANNEL, json.dumps(event_dict, separators=(",", ":"))
+                )
             except Exception:
                 # The append-only event table remains authoritative if Redis is unavailable.
                 logger.exception("Redis event publish failed for run %s", run_id)

@@ -79,7 +79,11 @@ class RunLifecycleManager:
         await event_bus.publish(
             run_id=run.id,
             event_type="run.queued",
-            payload={"workflow_key": workflow_key, "version": run.workflow_version, "inputs": inputs},
+            payload={
+                "workflow_key": workflow_key,
+                "version": run.workflow_version,
+                "inputs": inputs,
+            },
         )
 
         return run

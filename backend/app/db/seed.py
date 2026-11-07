@@ -62,8 +62,22 @@ async def seed_database() -> None:
                     "required": ["ticket_id", "customer_id"],
                 },
                 graph_definition={
-                    "nodes": ["triage", "research", "planner", "policy_gate", "action", "reviewer", "report"],
-                    "agents": ["TriageAgent", "ResearchAgent", "PlannerAgent", "ActionAgent", "ReviewerAgent"],
+                    "nodes": [
+                        "triage",
+                        "research",
+                        "planner",
+                        "policy_gate",
+                        "action",
+                        "reviewer",
+                        "report",
+                    ],
+                    "agents": [
+                        "TriageAgent",
+                        "ResearchAgent",
+                        "PlannerAgent",
+                        "ActionAgent",
+                        "ReviewerAgent",
+                    ],
                 },
                 is_active=True,
             )

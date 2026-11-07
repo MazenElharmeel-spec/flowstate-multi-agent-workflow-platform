@@ -77,9 +77,7 @@ class DatabaseCheckpointSaver(BaseCheckpointSaver[str]):
                 if isinstance(record.checkpoint_data, dict) and "b64" in record.checkpoint_data
                 else json.dumps(record.checkpoint_data).encode("utf-8")
             )
-            checkpoint: Checkpoint = self.serde.loads_typed(
-                (record.type or "json", raw_bytes)
-            )
+            checkpoint: Checkpoint = self.serde.loads_typed((record.type or "json", raw_bytes))
             metadata = cast(CheckpointMetadata, record.metadata_data or {})
 
             return CheckpointTuple(
@@ -155,9 +153,7 @@ class DatabaseCheckpointSaver(BaseCheckpointSaver[str]):
                     if isinstance(record.checkpoint_data, dict) and "b64" in record.checkpoint_data
                     else json.dumps(record.checkpoint_data).encode("utf-8")
                 )
-                checkpoint: Checkpoint = self.serde.loads_typed(
-                    (record.type or "json", raw_bytes)
-                )
+                checkpoint: Checkpoint = self.serde.loads_typed((record.type or "json", raw_bytes))
                 yield CheckpointTuple(
                     config=config_out,
                     checkpoint=checkpoint,

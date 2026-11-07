@@ -144,7 +144,9 @@ class ApprovalService:
                     approval.tool_name, edited_arguments, cast(WorkflowState, run_state)
                 )
                 if policy_eval.rule_name == "PROMPT_INJECTION_DEFENSE":
-                    raise PermanentError(f"Edited arguments failed policy check: {policy_eval.reason}")
+                    raise PermanentError(
+                        f"Edited arguments failed policy check: {policy_eval.reason}"
+                    )
 
                 resolved_args = edited_arguments
 

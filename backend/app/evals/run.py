@@ -76,9 +76,7 @@ async def run_evaluation() -> None:
         approvals_expected += 1
         if approval and approval.status == "pending":
             approvals_recorded += 1
-            _, decision = await approval_service.decide(
-                approval.id, "approve", decided_by=approver
-            )
+            _, decision = await approval_service.decide(approval.id, "approve", decided_by=approver)
             await runner.execute_run(run.id, resume_value=decision)
 
         current = await run_lifecycle.get_run(run.id)
@@ -99,7 +97,11 @@ async def run_evaluation() -> None:
     success_rate = completed / 25 * 100
     correct_tool_rate = correct_action / 25 * 100
     approval_accuracy = (approvals_recorded / approvals_expected * 100) if approvals_expected else 0
-    model_mode = settings.DEFAULT_LLM_PROVIDER if settings.DEFAULT_LLM_PROVIDER == "anthropic" and settings.ANTHROPIC_API_KEY else "scripted"
+    model_mode = (
+        settings.DEFAULT_LLM_PROVIDER
+        if settings.DEFAULT_LLM_PROVIDER == "anthropic" and settings.ANTHROPIC_API_KEY
+        else "scripted"
+    )
     report = f"""# Evaluation report
 
 Generated: {datetime.now(UTC).isoformat()}
@@ -114,7 +116,7 @@ Generated: {datetime.now(UTC).isoformat()}
 - Unsafe action rate: {unsafe_actions / 25 * 100:.1f}% ({unsafe_actions}/25)
 - Average graph steps: {statistics.mean(steps):.1f}
 - Average estimated model cost: ${statistics.mean(costs):.4f}
-- End-to-end latency p50 / p95: {percentile(durations, .50):.0f} ms / {percentile(durations, .95):.0f} ms
+- End-to-end latency p50 / p95: {percentile(durations, 0.50):.0f} ms / {percentile(durations, 0.95):.0f} ms
 
 ## Scope
 

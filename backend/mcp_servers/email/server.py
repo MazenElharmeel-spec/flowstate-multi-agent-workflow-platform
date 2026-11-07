@@ -18,7 +18,9 @@ server = MCPServer(name="email-mcp", version="1.0.0")
 SENT_EMAILS: list[dict[str, Any]] = []
 DB_PATH = os.environ.get(
     "EMAIL_DB_PATH",
-    "./data/email-test.sqlite" if os.environ.get("ENVIRONMENT") == "test" else "./data/email.sqlite",
+    "./data/email-test.sqlite"
+    if os.environ.get("ENVIRONMENT") == "test"
+    else "./data/email.sqlite",
 )
 
 
@@ -118,7 +120,10 @@ server.register_tool(
                 },
                 "subject": {"type": "string", "description": "Email subject line"},
                 "body": {"type": "string", "description": "Message content in markdown/text"},
-                "idempotency_key": {"type": "string", "description": "Stable key preventing duplicate sends"},
+                "idempotency_key": {
+                    "type": "string",
+                    "description": "Stable key preventing duplicate sends",
+                },
                 "template_id": {"type": "string", "description": "Optional email template code"},
             },
             "required": ["to_email", "subject", "body", "idempotency_key"],

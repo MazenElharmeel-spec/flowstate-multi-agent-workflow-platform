@@ -45,9 +45,16 @@ class AnthropicLLMProvider(BaseLLMProvider):
                 if m.tool_calls:
                     for tc in m.tool_calls:
                         content_blocks.append(
-                            {"type": "tool_use", "id": tc["id"], "name": tc["name"], "input": tc["arguments"]}
+                            {
+                                "type": "tool_use",
+                                "id": tc["id"],
+                                "name": tc["name"],
+                                "input": tc["arguments"],
+                            }
                         )
-                anthropic_messages.append({"role": "assistant", "content": content_blocks or m.content})
+                anthropic_messages.append(
+                    {"role": "assistant", "content": content_blocks or m.content}
+                )
             elif m.role == "tool":
                 anthropic_messages.append(
                     {
@@ -73,7 +80,11 @@ class AnthropicLLMProvider(BaseLLMProvider):
 
         if tools:
             payload["tools"] = [
-                {"name": t["name"], "description": t["description"], "input_schema": t["input_schema"]}
+                {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "input_schema": t["input_schema"],
+                }
                 for t in tools
             ]
 

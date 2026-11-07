@@ -18,7 +18,9 @@ router = APIRouter(prefix="/approvals", tags=["Approvals"])
 @router.get("", response_model=list[ApprovalRequestOut])
 async def list_approvals(
     current_user: Annotated[User, Depends(get_current_user)],
-    status: str | None = Query(None, description="Filter by pending/approved/rejected/edited/expired"),
+    status: str | None = Query(
+        None, description="Filter by pending/approved/rejected/edited/expired"
+    ),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> list[ApprovalRequest]:

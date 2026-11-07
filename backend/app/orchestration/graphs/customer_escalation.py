@@ -152,7 +152,13 @@ async def research_node(state: WorkflowState, config: RunnableConfig) -> dict[st
     # Second pass: synthesize context
     messages_synthesize = (
         messages
-        + [LLMMessage(role="assistant", content=res1.content, tool_calls=[tc.__dict__ for tc in res1.tool_calls])]
+        + [
+            LLMMessage(
+                role="assistant",
+                content=res1.content,
+                tool_calls=[tc.__dict__ for tc in res1.tool_calls],
+            )
+        ]
         + tool_results_messages
     )
 
@@ -161,7 +167,9 @@ async def research_node(state: WorkflowState, config: RunnableConfig) -> dict[st
 
     step_inc = state.get("step_count", 0) + 1
     tokens_inc = state.get("total_tokens", 0) + res1.total_tokens + res2.total_tokens
-    cost_inc = state.get("estimated_cost_usd", 0.0) + res1.estimated_cost_usd + res2.estimated_cost_usd
+    cost_inc = (
+        state.get("estimated_cost_usd", 0.0) + res1.estimated_cost_usd + res2.estimated_cost_usd
+    )
 
     await event_bus.publish(
         run_id=run_id,
@@ -351,7 +359,9 @@ async def action_node(state: WorkflowState, config: RunnableConfig) -> dict[str,
             idempotency_key=resolved_args.get("idempotency_key"),
         )
         res_refund = await refund_tool.run(resolved_args, ctx)
-        refund_result = res_refund.data if res_refund.status == "success" else {"error": res_refund.error}
+        refund_result = (
+            res_refund.data if res_refund.status == "success" else {"error": res_refund.error}
+        )
         rec = {
             "tool_name": "issue_refund",
             "arguments": resolved_args,

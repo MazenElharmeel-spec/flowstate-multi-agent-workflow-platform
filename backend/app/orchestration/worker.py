@@ -156,7 +156,9 @@ class WorkflowWorker:
         await runner.execute_run(run_id, resume_value=resume_value)
 
     async def _renew_lease(self, run_id: str, execution: asyncio.Task[Any]) -> None:
-        interval = max(1, min(settings.WORKER_HEARTBEAT_SECONDS, settings.WORKER_LEASE_SECONDS // 3))
+        interval = max(
+            1, min(settings.WORKER_HEARTBEAT_SECONDS, settings.WORKER_LEASE_SECONDS // 3)
+        )
         while not execution.done():
             await asyncio.sleep(interval)
             if execution.done():

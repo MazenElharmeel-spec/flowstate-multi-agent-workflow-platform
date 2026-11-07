@@ -63,11 +63,7 @@ async def get_run_events(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[RunEvent]:
     """Retrieve full append-only execution event log for a run."""
-    stmt = (
-        select(RunEvent)
-        .where(RunEvent.run_id == run_id)
-        .order_by(RunEvent.sequence_number)
-    )
+    stmt = select(RunEvent).where(RunEvent.run_id == run_id).order_by(RunEvent.sequence_number)
     res = await db.execute(stmt)
     return list(res.scalars().all())
 

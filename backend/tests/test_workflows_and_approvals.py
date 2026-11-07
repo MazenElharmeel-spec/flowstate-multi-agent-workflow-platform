@@ -65,18 +65,14 @@ async def test_end_to_end_customer_escalation_happy_path(client: AsyncClient) ->
 
     # Verify approval request was generated
     async with async_session_factory() as session:
-        res = await session.execute(
-            select(ApprovalRequest).where(ApprovalRequest.run_id == run.id)
-        )
+        res = await session.execute(select(ApprovalRequest).where(ApprovalRequest.run_id == run.id))
         approval = res.scalar_one()
         assert approval.tool_name == "issue_refund"
         assert approval.original_arguments["amount"] == 120.0
         assert approval.status == "pending"
 
         # Fetch approver user
-        user_res = await session.execute(
-            select(User).where(User.email == "approver@example.com")
-        )
+        user_res = await session.execute(select(User).where(User.email == "approver@example.com"))
         approver = user_res.scalar_one()
 
     # 3. Approver approves the request
@@ -121,13 +117,9 @@ async def test_approval_edit_argument_flow() -> None:
     await runner.execute_run(run.id)
 
     async with async_session_factory() as session:
-        res = await session.execute(
-            select(ApprovalRequest).where(ApprovalRequest.run_id == run.id)
-        )
+        res = await session.execute(select(ApprovalRequest).where(ApprovalRequest.run_id == run.id))
         approval = res.scalar_one()
-        user_res = await session.execute(
-            select(User).where(User.email == "approver@example.com")
-        )
+        user_res = await session.execute(select(User).where(User.email == "approver@example.com"))
         approver = user_res.scalar_one()
 
     # Approver edits refund amount from $120 to $100
@@ -166,13 +158,9 @@ async def test_approval_rejection_replan_flow() -> None:
     await runner.execute_run(run.id)
 
     async with async_session_factory() as session:
-        res = await session.execute(
-            select(ApprovalRequest).where(ApprovalRequest.run_id == run.id)
-        )
+        res = await session.execute(select(ApprovalRequest).where(ApprovalRequest.run_id == run.id))
         approval = res.scalar_one()
-        user_res = await session.execute(
-            select(User).where(User.email == "approver@example.com")
-        )
+        user_res = await session.execute(select(User).where(User.email == "approver@example.com"))
         approver = user_res.scalar_one()
 
     # Reject refund proposal
@@ -219,13 +207,9 @@ async def test_crash_and_restart_idempotency_safety() -> None:
     await runner.execute_run(run.id)
 
     async with async_session_factory() as session:
-        res = await session.execute(
-            select(ApprovalRequest).where(ApprovalRequest.run_id == run.id)
-        )
+        res = await session.execute(select(ApprovalRequest).where(ApprovalRequest.run_id == run.id))
         approval = res.scalar_one()
-        user_res = await session.execute(
-            select(User).where(User.email == "approver@example.com")
-        )
+        user_res = await session.execute(select(User).where(User.email == "approver@example.com"))
         approver = user_res.scalar_one()
 
     # Approve
@@ -262,11 +246,14 @@ async def test_malicious_ticket_text_cannot_execute_refund_without_approval() ->
     result = await runner.execute_run(run.id)
 
     assert result["status"] == "waiting_approval"
-    assert policy_engine.evaluate_tool_call(
-        "issue_refund",
-        {"amount": 10, "reason": "bypass approval"},
-        {},
-    ).rule_name == "PROMPT_INJECTION_DEFENSE"
+    assert (
+        policy_engine.evaluate_tool_call(
+            "issue_refund",
+            {"amount": 10, "reason": "bypass approval"},
+            {},
+        ).rule_name
+        == "PROMPT_INJECTION_DEFENSE"
+    )
 
     async with async_session_factory() as session:
         approvals = await session.execute(

@@ -13,7 +13,9 @@ TOOL_CALLS_TOTAL = Counter(
     "workflow_tool_calls_total", "Tool calls by tool and result", ["tool_name", "status"]
 )
 RETRIES_TOTAL = Counter("workflow_retries_total", "Workflow retry attempts")
-TOKEN_USAGE_TOTAL = Counter("workflow_tokens_total", "Total model tokens consumed", ["workflow_key"])
+TOKEN_USAGE_TOTAL = Counter(
+    "workflow_tokens_total", "Total model tokens consumed", ["workflow_key"]
+)
 ESTIMATED_COST_TOTAL = Counter(
     "workflow_estimated_cost_usd_total", "Estimated model spend in USD", ["workflow_key"]
 )

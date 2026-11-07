@@ -203,7 +203,11 @@ class ScriptedFakeLLM(BaseLLMProvider):
         # 6. Report Step or Ops Digest
         elif "Ops Digest" in system_prompt or "ops" in system_prompt.lower():
             data = {
-                "metrics_analyzed": {"active_agents": 6, "runs_completed": 142, "error_rate": 0.015},
+                "metrics_analyzed": {
+                    "active_agents": 6,
+                    "runs_completed": 142,
+                    "error_rate": 0.015,
+                },
                 "anomalies": ["Slight latency uptick on payments-mcp around 14:00 UTC"],
                 "summary": "Weekly system performance is within normal SLOs. Error rate 1.5% is well below 5% target.",
                 "status": "completed",

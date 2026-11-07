@@ -46,7 +46,9 @@ IDEMPOTENCY_STORE: dict[str, dict[str, Any]] = {}
 REFUND_LOG: list[dict[str, Any]] = []
 DB_PATH = os.environ.get(
     "PAYMENTS_DB_PATH",
-    "./data/payments-test.sqlite" if os.environ.get("ENVIRONMENT") == "test" else "./data/payments.sqlite",
+    "./data/payments-test.sqlite"
+    if os.environ.get("ENVIRONMENT") == "test"
+    else "./data/payments.sqlite",
 )
 
 

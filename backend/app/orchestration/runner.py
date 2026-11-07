@@ -168,9 +168,7 @@ class WorkflowRunner:
                 time.perf_counter() - execution_started_at
             )
             TOKEN_USAGE_TOTAL.labels(workflow_key=workflow_key).inc(run_rec.total_tokens)
-            ESTIMATED_COST_TOTAL.labels(workflow_key=workflow_key).inc(
-                run_rec.estimated_cost_usd
-            )
+            ESTIMATED_COST_TOTAL.labels(workflow_key=workflow_key).inc(run_rec.estimated_cost_usd)
 
             return final_state
 
